@@ -1,17 +1,17 @@
 import React from 'react';
-import { 
-  LayoutDashboard, 
-  Calendar, 
-  Truck, 
-  BookOpen, 
-  Users, 
-  FileLineChart, 
-  Receipt, 
-  Search, 
-  MessageSquare, 
-  HelpCircle, 
-  Bell, 
-  ChevronDown 
+import {
+  LayoutDashboard,
+  Calendar,
+  Truck,
+  BookOpen,
+  Users,
+  FileLineChart,
+  Receipt,
+  Search,
+  MessageSquare,
+  HelpCircle,
+  Bell,
+  ChevronDown
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -40,7 +40,7 @@ export const NavigationHeader: React.FC<NavigationHeaderProps> = ({
       <div className="flex items-center gap-10 h-full">
         {/* Skeduler Brand Logo */}
         <div className="flex items-center cursor-pointer select-none">
-          <img src="/logo.svg" alt="Skeduler Logo" className="h-5 w-auto object-contain" />
+          <img src="/SkedulerUI/logo.svg" alt="Skeduler Logo" className="h-5 w-auto object-contain" />
         </div>
 
         {/* Navigation Items */}
@@ -55,8 +55,8 @@ export const NavigationHeader: React.FC<NavigationHeaderProps> = ({
                 onClick={() => onTabChange?.(item.name)}
                 className={cn(
                   "flex items-center gap-2 px-3 h-[53px] border-b-2 border-transparent text-xs font-semibold select-none transition-all",
-                  isActive 
-                    ? "border-primary text-primary" 
+                  isActive
+                    ? "border-primary text-primary"
                     : "text-text-secondary hover:text-text-primary hover:bg-muted/10"
                 )}
               >
