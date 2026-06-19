@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Popover, PopoverTrigger } from '@/components/ui/popover';
 import { EventDetailPopover } from './EventDetailPopover';
-import { Eye } from 'lucide-react';
+import { Eye, EyeOff } from 'lucide-react';
 
 interface EventCardProps {
   event: EventItem;
@@ -21,7 +21,6 @@ export const EventCard: React.FC<EventCardProps> = ({
   onDragStart,
   onResizeStart,
 }) => {
-  // NEW: Track where the mouse started so we can distinguish a click from a drag
   const dragStartPos = useRef({ x: 0, y: 0 });
   const location = event.metadata?.location || '';
   const price = event.metadata?.price || 0;
@@ -31,18 +30,19 @@ export const EventCard: React.FC<EventCardProps> = ({
   };
 
   const statusColors = {
-    Ongoing: 'bg-orange-50 text-orange-600 border-orange-100 dark:bg-orange-950/20 dark:text-orange-400 dark:border-orange-900/30',
-    New: 'bg-blue-50 text-blue-600 border-blue-100 dark:bg-blue-950/20 dark:text-blue-400 dark:border-blue-900/30',
-    Completed: 'bg-emerald-50 text-emerald-600 border-emerald-100 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/30',
-    Cancelled: 'bg-rose-50 text-rose-600 border-rose-100 dark:bg-rose-950/20 dark:text-rose-400 dark:border-rose-900/30',
+    Ongoing: 'bg-[#FEF6F5] text-[#CF4523] border-[#FCDFD4] dark:bg-[#791D09]/20 dark:text-[#F98A66]',
+    New: 'bg-[#FEF6F5] text-[#CF4523] border-[#FCDFD4] dark:bg-[#791D09]/20 dark:text-[#F98A66]',
+    Completed: 'bg-[#EEFDF4] text-[#15803D] border-[#DCFCE7] dark:bg-[#14532D]/20 dark:text-[#4ADE80]',
+    Cancelled: 'bg-[#FEF2F2] text-[#B91C1C] border-[#FEE2E2] dark:bg-[#7F1D1D]/20 dark:text-[#F87171]',
   };
 
-  const borderColors = {
-    Ongoing: 'border-l-[4px] border-l-amber-500',
-    New: 'border-l-[4px] border-l-blue-500',
-    Completed: 'border-l-[4px] border-l-emerald-500',
-    Cancelled: 'border-l-[4px] border-l-rose-500',
-  };
+  const role = resource?.metadata?.role || '';
+  const borderClass = role === 'ELECTRICAL' 
+    ? 'border-l-[#CF4523]' 
+    : 'border-l-[#2563eb]';
+
+  // Determine dispatch status to match Figma screenshot
+  const isDispatched = ['job-1', 'job-2', 'job-20', 'job-22'].some(id => event.id.includes(id));
 
   return (
     <Popover>
@@ -50,8 +50,9 @@ export const EventCard: React.FC<EventCardProps> = ({
         <div
           className={cn(
             "flex flex-col justify-between h-[85px] p-3 pl-4 rounded-xl border border-slate-100 bg-white dark:bg-[#1a1a24] dark:border-border/30 text-left shadow-xs hover:shadow-md relative select-none touch-none cursor-pointer group",
-            "transition-[box-shadow,transform,background-color] duration-200", // FIXED: Replaced transition-all so positional transforms don't animate wildly
-            borderColors[event.status] || 'border-l-[4px] border-l-blue-500',
+            "transition-[box-shadow,transform,background-color] duration-200",
+            "border-l-[4px]",
+            borderClass,
             isDragging && "opacity-60 scale-[1.02] shadow-md border-primary/40 ring-1 ring-primary/20"
           )}
           onPointerDown={(e) => {
@@ -59,7 +60,6 @@ export const EventCard: React.FC<EventCardProps> = ({
             onDragStart(e);
           }}
           onClickCapture={(e) => {
-            // NEW: If the mouse moved more than 5px, it was a drag. Kill the click!
             const dx = Math.abs(e.clientX - dragStartPos.current.x);
             const dy = Math.abs(e.clientY - dragStartPos.current.y);
             if (dx > 5 || dy > 5) {
@@ -95,7 +95,11 @@ export const EventCard: React.FC<EventCardProps> = ({
             {location && (
               <div className="flex items-center gap-1.5 text-[10px] text-text-secondary mt-0.5 min-w-0">
                 <span className="truncate">{location}</span>
-                <Eye className="w-3.5 h-3.5 text-orange-500 dark:text-orange-400 shrink-0" />
+                {isDispatched ? (
+                  <Eye className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                ) : (
+                  <EyeOff className="w-3.5 h-3.5 text-orange-500 dark:text-orange-400 shrink-0" />
+                )}
               </div>
             )}
           </div>

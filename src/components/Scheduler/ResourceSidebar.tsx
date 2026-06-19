@@ -41,7 +41,14 @@ export const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
         </div>
 
         {/* Avatar */}
-        <div className="flex items-center justify-center w-9 h-9 rounded-full bg-secondary text-secondary-foreground font-bold text-sm">
+        <div className={cn(
+          "flex items-center justify-center w-9 h-9 rounded-full font-bold text-sm border shrink-0",
+          role === 'ELECTRICAL' && "bg-[#FEF6F5] text-[#CF4523] border-[#FCDFD4]",
+          role === 'PLUMBING' && "bg-[#F3F8FF] text-[#1D4ED8] border-[#DBEAFE]",
+          role === 'HVAC' && "bg-[#EEFAFC] text-[#1E7BAF] border-[#C1E7EF]",
+          role === 'UNASSIGNED' && "bg-[#F3F4F6] text-[#6A7282] border-[#E5E7EB]",
+          !['ELECTRICAL', 'PLUMBING', 'HVAC', 'UNASSIGNED'].includes(role) && "bg-secondary text-secondary-foreground border-transparent"
+        )}>
           {resource.avatar || resource.name.slice(0, 2).toUpperCase()}
         </div>
 

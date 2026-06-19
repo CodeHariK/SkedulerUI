@@ -54,7 +54,7 @@ export const NavigationHeader: React.FC<NavigationHeaderProps> = ({
                 key={item.name}
                 onClick={() => onTabChange?.(item.name)}
                 className={cn(
-                  "flex items-center gap-2 px-3 h-[53px] border-b-2 border-transparent text-xs font-semibold select-none transition-all",
+                  "flex items-center gap-2 px-3 h-[53px] border-b-2 border-transparent text-xs font-medium select-none transition-all",
                   isActive
                     ? "border-primary text-primary"
                     : "text-text-secondary hover:text-text-primary hover:bg-muted/10"
@@ -97,7 +97,7 @@ export const NavigationHeader: React.FC<NavigationHeaderProps> = ({
             {/* Standard fallback, or we can use custom styling */}
             <span className="text-[10px] text-text-primary font-bold">AW</span>
           </div>
-          <span className="text-sm font-semibold text-text-primary">Alan Wake</span>
+          <span className="text-sm font-medium text-text-primary">Alan Wake</span>
           <ChevronDown className="w-4 h-4 text-text-tertiary" />
         </div>
       </div>

@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { PopoverContent } from '@/components/ui/popover';
-import { MapPin, Eye } from 'lucide-react';
+import { MapPin, Eye, EyeOff } from 'lucide-react';
 
 interface EventDetailPopoverProps {
   event: EventItem;
@@ -24,11 +24,20 @@ export const EventDetailPopover: React.FC<EventDetailPopoverProps> = ({
   };
 
   const statusColors = {
-    Ongoing: 'bg-orange-50 text-orange-600 border-orange-100 dark:bg-orange-950/20 dark:text-orange-400 dark:border-orange-900/30',
-    New: 'bg-blue-50 text-blue-600 border-blue-100 dark:bg-blue-950/20 dark:text-blue-400 dark:border-blue-900/30',
-    Completed: 'bg-emerald-50 text-emerald-600 border-emerald-100 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/30',
-    Cancelled: 'bg-rose-50 text-rose-600 border-rose-100 dark:bg-rose-950/20 dark:text-rose-400 dark:border-rose-900/30',
+    Ongoing: 'bg-[#FEF6F5] text-[#CF4523] border-[#FCDFD4] dark:bg-[#791D09]/20 dark:text-[#F98A66]',
+    New: 'bg-[#FEF6F5] text-[#CF4523] border-[#FCDFD4] dark:bg-[#791D09]/20 dark:text-[#F98A66]',
+    Completed: 'bg-[#EEFDF4] text-[#15803D] border-[#DCFCE7] dark:bg-[#14532D]/20 dark:text-[#4ADE80]',
+    Cancelled: 'bg-[#FEF2F2] text-[#B91C1C] border-[#FEE2E2] dark:bg-[#7F1D1D]/20 dark:text-[#F87171]',
   };
+
+  // Determine dispatch status to match Figma design
+  const isDispatched = ['job-1', 'job-2', 'job-20', 'job-22'].some(id => event.id.includes(id));
+
+  // Determine technician avatar colors based on role
+  const isElectrical = resource?.metadata?.role === 'ELECTRICAL';
+  const avatarBg = isElectrical 
+    ? 'bg-[#FEF6F5] text-[#CF4523] border-[#FCDFD4]' 
+    : 'bg-[#F3F8FF] text-[#1D4ED8] border-[#DBEAFE]';
 
   return (
     <PopoverContent className="w-[320px] p-5 bg-white dark:bg-[#1c1c1c] border border-border/70 shadow-xl rounded-2xl z-50 flex flex-col gap-4 select-none" side="bottom" align="start">
@@ -73,7 +82,10 @@ export const EventDetailPopover: React.FC<EventDetailPopoverProps> = ({
         <div className="flex justify-between items-center gap-2">
           <span className="text-text-tertiary">Technician</span>
           <div className="flex items-center gap-2">
-            <div className="flex items-center justify-center w-6 h-6 rounded-full bg-orange-100 dark:bg-orange-950/40 text-orange-700 dark:text-orange-400 font-bold text-[9px] border border-orange-200/40 shrink-0">
+            <div className={cn(
+              "flex items-center justify-center w-6 h-6 rounded-full font-bold text-[9px] border shrink-0",
+              avatarBg
+            )}>
               {resource ? (resource.avatar || resource.name.slice(0, 2).toUpperCase()) : 'UN'}
             </div>
             <span className="font-semibold text-text-primary">{resource ? resource.name : 'Unassigned'}</span>
@@ -89,10 +101,17 @@ export const EventDetailPopover: React.FC<EventDetailPopoverProps> = ({
         {/* Dispatch Row */}
         <div className="flex justify-between items-center gap-2">
           <span className="text-text-tertiary">Dispatch</span>
-          <div className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-semibold">
-            <Eye className="w-3.5 h-3.5" />
-            <span>Dispatched</span>
-          </div>
+          {isDispatched ? (
+            <div className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-semibold">
+              <Eye className="w-3.5 h-3.5" />
+              <span>Dispatched</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1 text-orange-500 dark:text-orange-400 font-semibold">
+              <EyeOff className="w-3.5 h-3.5" />
+              <span>Pending</span>
+            </div>
+          )}
         </div>
       </div>
 
