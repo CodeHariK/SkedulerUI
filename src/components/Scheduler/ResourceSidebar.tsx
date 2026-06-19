@@ -2,23 +2,27 @@ import React from 'react';
 import type { Resource } from './types';
 import { cn } from '@/lib/utils';
 import { Calendar, GripVertical } from 'lucide-react';
-
+import { Virtualizer } from '@tanstack/react-virtual';
 
 interface ResourceSidebarProps {
   resources: Resource[];
+  virtualizer: Virtualizer<HTMLDivElement, Element>;
   rowDragResourceId: string | undefined;
   startRowDrag: (e: React.PointerEvent, resourceId: string) => void;
   renderResource?: (resource: Resource, onGripMouseDown?: (e: React.PointerEvent) => void) => React.ReactNode;
-  rowHeights: Record<string, number>;
+  virtualVersion?: number;
 }
 
 export const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
   resources,
+  virtualizer,
   rowDragResourceId,
   startRowDrag,
   renderResource,
-  rowHeights,
+  virtualVersion,
 }) => {
+  // Read virtualVersion to satisfy compiler and trigger re-renders
+  void virtualVersion;
   const defaultRenderResource = (resource: Resource, index: number, onGripMouseDown?: (e: React.PointerEvent) => void) => {
     const role = resource.metadata?.role || '';
     const jobsCount = resource.metadata?.jobsCount || 0;
@@ -27,11 +31,10 @@ export const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
     return (
       <div
         className={cn(
-          "flex items-center gap-3 px-4 border-b border-border hover:bg-muted/10 transition-colors relative select-none group",
+          "flex items-center gap-3 px-4 border-b border-border hover:bg-muted/10 transition-colors relative select-none group h-full",
           isDraggingRow && "opacity-50 border-primary/20 bg-primary/5 z-20 shadow-inner"
         )}
-        style={{ 
-          height: `${rowHeights[resource.id] || 140}px`,
+        style={{
           backgroundColor: index % 2 === 0 ? 'var(--row-bg-even)' : 'var(--row-bg-odd)'
         }}
       >
@@ -70,22 +73,36 @@ export const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
     );
   };
 
-
   return (
     <div className="w-[240px] flex-shrink-0 border-r border-border bg-card z-10 select-none">
       {/* Header Spacer */}
-      <div className="h-14 flex items-center px-6 border-b border-border bg-card">
+      <div className="h-14 flex items-center px-6 border-b border-border bg-card sticky top-0 z-30">
         <span className="text-[10px] font-bold tracking-wider text-text-tertiary uppercase">TECHNICIANS</span>
       </div>
+
       {/* Resource list items */}
-      <div className="flex flex-col">
-        {resources.map((resource, index) => (
-          <React.Fragment key={resource.id}>
-            {renderResource
-              ? renderResource(resource, (e) => startRowDrag(e, resource.id))
-              : defaultRenderResource(resource, index, (e) => startRowDrag(e, resource.id))}
-          </React.Fragment>
-        ))}
+      <div style={{ height: `${virtualizer.getTotalSize()}px`, width: '100%', position: 'relative' }}>
+        {virtualizer.getVirtualItems().map((virtualRow) => {
+          const resource = resources[virtualRow.index];
+          if (!resource) return null;
+          return (
+            <div
+              key={virtualRow.key}
+              style={{
+                position: 'absolute',
+                top: 0,   // FIXED: Critical for virtualizer positioning!
+                left: 0,  // FIXED: Critical for virtualizer positioning!
+                width: '100%',
+                height: `${virtualRow.size}px`,
+                transform: `translateY(${virtualRow.start}px)`,
+              }}
+            >
+              {renderResource
+                ? renderResource(resource, (e) => startRowDrag(e, resource.id))
+                : defaultRenderResource(resource, virtualRow.index, (e) => startRowDrag(e, resource.id))}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

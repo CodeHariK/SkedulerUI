@@ -4,6 +4,7 @@ import { TimelineControlsHeader } from './TimelineControlsHeader';
 import { ResourceSidebar } from './ResourceSidebar';
 import { TimelineGrid } from './TimelineGrid';
 import { JobCreationDialog } from './JobCreationDialog';
+import { useVirtualizer } from '@tanstack/react-virtual';
 
 const getHourWidth = (zoom: number) => {
   switch (zoom) {
@@ -39,49 +40,7 @@ const slotToDate = (slot: number, currentDate: Date, dayStartHour: number, slots
   return date;
 };
 
-const calculateRowHeights = (
-  resources: Resource[],
-  events: EventItem[],
-  baseHeight = 140,
-  cardHeight = 95
-): Record<string, number> => {
-  const heights: Record<string, number> = {};
 
-  resources.forEach(resource => {
-    const resourceEvents = events
-      .filter(e => e.resourceId === resource.id)
-      .sort((a, b) => {
-        const diff = a.startTime.getTime() - b.startTime.getTime();
-        return diff !== 0 ? diff : a.id.localeCompare(b.id);
-      });
-
-    if (resourceEvents.length === 0) {
-      heights[resource.id] = baseHeight;
-      return;
-    }
-
-    const lanes: number[] = [];
-
-    resourceEvents.forEach(event => {
-      let placed = false;
-      for (let i = 0; i < lanes.length; i++) {
-        if (lanes[i] <= event.startTime.getTime()) {
-          lanes[i] = event.endTime.getTime();
-          placed = true;
-          break;
-        }
-      }
-      if (!placed) {
-        lanes.push(event.endTime.getTime());
-      }
-    });
-
-    const requiredHeight = Math.max(baseHeight, lanes.length * cardHeight + 30);
-    heights[resource.id] = requiredHeight;
-  });
-
-  return heights;
-};
 
 export interface ResourceSchedulerProps {
   resources: Resource[];
@@ -113,6 +72,9 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
   onResourcesReorder
 }) => {
   const gridRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null);
+  const [virtualVersion, setVirtualVersion] = useState(0);
   const lastInteractionRef = useRef<{ slot: number; resourceId?: string } | null>(null);
 
   const [localResources, setLocalResources] = useState<Resource[]>(resources);
@@ -160,6 +122,9 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
     currentSlot: number;
   } | null>(null);
 
+  // NEW: State to track exact pixel start of a selection click
+  const [selectionStartPos, setSelectionStartPos] = useState<{ x: number; y: number } | null>(null);
+
   const [showJobCreationModal, setShowJobCreationModal] = useState(false);
   const [newEventData, setNewEventData] = useState<any>(null);
 
@@ -174,9 +139,78 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
   const slotWidth = useMemo(() => totalWidth / totalSlots, [totalWidth, totalSlots]);
   const hours = useMemo(() => Array.from({ length: totalHours }, (_, i) => dayStartHour + i), [totalHours, dayStartHour]);
 
-  const rowHeights = useMemo(() => {
-    return calculateRowHeights(localResources, localEvents);
+  const layoutEngine = useMemo(() => {
+    const rowHeights: Record<string, number> = {};
+    const eventLanes: Record<string, number> = {};
+    const eventsByResource: Record<string, EventItem[]> = {};
+
+    // Initialize arrays for fast grouping
+    localResources.forEach(r => {
+      eventsByResource[r.id] = [];
+      rowHeights[r.id] = 140; // Default height
+    });
+
+    // Group events by resource O(N)
+    localEvents.forEach(e => {
+      if (eventsByResource[e.resourceId]) {
+        eventsByResource[e.resourceId].push(e);
+      }
+    });
+
+    // Calculate lanes and heights per resource
+    localResources.forEach(resource => {
+      const resourceEvents = eventsByResource[resource.id].sort((a, b) => {
+        const diff = a.startTime.getTime() - b.startTime.getTime();
+        return diff !== 0 ? diff : a.id.localeCompare(b.id);
+      });
+
+      if (resourceEvents.length === 0) return;
+
+      const lanes: number[] = [];
+
+      resourceEvents.forEach(event => {
+        let placed = false;
+        for (let i = 0; i < lanes.length; i++) {
+          if (lanes[i] <= event.startTime.getTime()) {
+            lanes[i] = event.endTime.getTime();
+            eventLanes[event.id] = i + 1; // Save the exact lane assignment!
+            placed = true;
+            break;
+          }
+        }
+        if (!placed) {
+          lanes.push(event.endTime.getTime());
+          eventLanes[event.id] = lanes.length;
+        }
+      });
+
+      rowHeights[resource.id] = Math.max(140, lanes.length * 95 + 30);
+    });
+
+    return { rowHeights, eventLanes, eventsByResource };
   }, [localResources, localEvents]);
+
+  const estimateSize = useCallback((index: number) => {
+    const resource = localResources[index];
+    if (!resource) return 140;
+    return layoutEngine.rowHeights[resource.id] || 140;
+  }, [localResources, layoutEngine.rowHeights]);
+
+  const rowVirtualizer = useVirtualizer({
+    count: localResources.length,
+    getScrollElement: () => scrollElement,
+    estimateSize,
+    overscan: 5,
+    initialRect: { width: 1200, height: 800 },
+    onChange: () => {
+      setVirtualVersion(v => v + 1);
+    }
+  });
+
+  // Force the virtualizer to immediately recalculate heights when row heights change
+  useEffect(() => {
+    rowVirtualizer.measure();
+  }, [layoutEngine.rowHeights, rowVirtualizer]);
 
   const formatHourLabel = useCallback((hour: number) => {
     const period = hour >= 12 ? 'PM' : 'AM';
@@ -212,8 +246,8 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
     setInteraction({
       eventId, type: 'move',
       startX: e.clientX, startY: e.clientY,
-      startScrollLeft: gridRef.current?.scrollLeft || 0,
-      startScrollTop: gridRef.current?.scrollTop || 0,
+      startScrollLeft: scrollContainerRef.current?.scrollLeft || 0,
+      startScrollTop: scrollContainerRef.current?.scrollTop || 0,
       startColStart: gridColumnStart - 1, startColEnd: gridColumnEnd - 1, startResourceId: event.resourceId
     });
 
@@ -237,8 +271,8 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
     setInteraction({
       eventId, type: 'resize',
       startX: e.clientX, startY: e.clientY,
-      startScrollLeft: gridRef.current?.scrollLeft || 0,
-      startScrollTop: gridRef.current?.scrollTop || 0,
+      startScrollLeft: scrollContainerRef.current?.scrollLeft || 0,
+      startScrollTop: scrollContainerRef.current?.scrollTop || 0,
       startColStart: gridColumnStart - 1, startColEnd: gridColumnEnd - 1,
       startResourceId: event.resourceId, resizeDirection: direction
     });
@@ -253,6 +287,7 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
     const slotIdx = Math.max(0, Math.floor((e.clientX - gridRect.left + gridRef.current.scrollLeft) / slotWidth));
 
     setSelection({ resourceId, startSlot: slotIdx, currentSlot: slotIdx });
+    setSelectionStartPos({ x: e.clientX, y: e.clientY }); // Track physical mouse down coordinates
     lastInteractionRef.current = { slot: slotIdx };
   }, [slotWidth]);
 
@@ -284,8 +319,9 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
         }
       } else if (interaction.type === 'move') {
 
-        const scrollDeltaX = gridEl.scrollLeft - interaction.startScrollLeft;
-        const scrollDeltaY = gridEl.scrollTop - interaction.startScrollTop;
+        const scrollContainerEl = scrollContainerRef.current;
+        const scrollDeltaX = (scrollContainerEl?.scrollLeft || 0) - interaction.startScrollLeft;
+        const scrollDeltaY = (scrollContainerEl?.scrollTop || 0) - interaction.startScrollTop;
 
         setDragPosition({
           x: (e.clientX - interaction.startX) + scrollDeltaX,
@@ -294,14 +330,19 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
 
         let targetResource: Resource;
 
-        if (canChangeRows) {
-          const gridY = (e.clientY - gridRect.top + gridEl.scrollTop) - 56;
-          let accumulatedHeight = 0;
-          let targetRowIdx = localResources.length - 1;
+        if (canChangeRows && scrollContainerEl) {
+          const scrollContainerRect = scrollContainerEl.getBoundingClientRect();
+          const gridY = (e.clientY - scrollContainerRect.top + scrollContainerEl.scrollTop) - 56;
 
-          for (let i = 0; i < localResources.length; i++) {
-            accumulatedHeight += rowHeights[localResources[i].id] || 140;
-            if (gridY <= accumulatedHeight) { targetRowIdx = i; break; }
+          const virtualItems = rowVirtualizer.getVirtualItems();
+          let targetRowIdx = localResources.length - 1;
+          const found = virtualItems.find(item => {
+            const start = item.start;
+            const end = start + item.size;
+            return gridY >= start && gridY <= end;
+          });
+          if (found) {
+            targetRowIdx = found.index;
           }
 
           targetRowIdx = Math.max(0, Math.min(localResources.length - 1, targetRowIdx));
@@ -325,14 +366,20 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
         });
       }
     } else if (rowDrag) {
-      const gridRect = gridEl.getBoundingClientRect();
-      const gridY = (e.clientY - gridRect.top + gridEl.scrollTop) - 56;
-      let accumulatedHeight = 0;
-      let newIndex = localResources.length - 1;
+      const scrollContainerEl = scrollContainerRef.current;
+      if (!scrollContainerEl) return;
+      const scrollContainerRect = scrollContainerEl.getBoundingClientRect();
+      const gridY = (e.clientY - scrollContainerRect.top + scrollContainerEl.scrollTop) - 56;
 
-      for (let i = 0; i < localResources.length; i++) {
-        accumulatedHeight += rowHeights[localResources[i].id] || 140;
-        if (gridY <= accumulatedHeight) { newIndex = i; break; }
+      const virtualItems = rowVirtualizer.getVirtualItems();
+      let newIndex = localResources.length - 1;
+      const found = virtualItems.find(item => {
+        const start = item.start;
+        const end = start + item.size;
+        return gridY >= start && gridY <= end;
+      });
+      if (found) {
+        newIndex = found.index;
       }
 
       newIndex = Math.max(0, Math.min(localResources.length - 1, newIndex));
@@ -349,9 +396,9 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
       lastInteractionRef.current = { slot: slotIdx };
       setSelection(prev => prev ? { ...prev, currentSlot: slotIdx } : null);
     }
-  }, [interaction, rowDrag, selection, localResources, slotWidth, totalSlots, currentDate, dayStartHour, slotsPerHour, rowHeights, canChangeRows]);
+  }, [interaction, rowDrag, selection, localResources, slotWidth, totalSlots, currentDate, dayStartHour, slotsPerHour, rowVirtualizer, canChangeRows, layoutEngine]);
 
-  const handlePointerUp = useCallback(() => {
+  const handlePointerUp = useCallback((e: React.PointerEvent) => {
     if (interaction) {
       if (interaction.type === 'move' && dropIndicator) {
         const finalEvent = localEvents.find(evt => evt.id === interaction.eventId);
@@ -378,11 +425,18 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
       setRowDrag(null);
     } else if (selection) {
 
-      // FIXED: Discard the selection if it was merely a click
-      if (selection.startSlot === selection.currentSlot) {
-        setSelection(null);
-        lastInteractionRef.current = null;
-        return;
+      // FIXED: Strictly ensure the user dragged their mouse by at least 5 pixels
+      // If it's less than 5 pixels, discard the event as a pure click!
+      if (selectionStartPos) {
+        const dx = Math.abs(e.clientX - selectionStartPos.x);
+        const dy = Math.abs(e.clientY - selectionStartPos.y);
+
+        if (dx < 5 && dy < 5) {
+          setSelection(null);
+          setSelectionStartPos(null);
+          lastInteractionRef.current = null;
+          return;
+        }
       }
 
       const start = Math.min(selection.startSlot, selection.currentSlot);
@@ -396,9 +450,10 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
       });
       setShowJobCreationModal(true);
       setSelection(null);
+      setSelectionStartPos(null);
     }
     lastInteractionRef.current = null;
-  }, [interaction, dropIndicator, localEvents, localResources, currentDate, dayStartHour, slotsPerHour, onEventChange, onResourcesReorder, rowDrag, selection]);
+  }, [interaction, dropIndicator, localEvents, localResources, currentDate, dayStartHour, slotsPerHour, onEventChange, onResourcesReorder, rowDrag, selection, selectionStartPos]);
 
   const handleCreateJobHeader = useCallback(() => {
     setNewEventData({
@@ -450,20 +505,54 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
         isMapViewActive={isMapViewActive} onMapViewToggle={() => setIsMapViewActive(!isMapViewActive)}
         theme={theme} onThemeToggle={handleThemeToggle}
       />
-      <div className="flex-1 min-h-0 flex relative overflow-y-auto select-none" onPointerMove={handlePointerMove} onPointerUp={handlePointerUp}>
+      <div
+        ref={(node) => {
+          if (node) {
+            (scrollContainerRef as any).current = node;
+            setScrollElement(node);
+          }
+        }}
+        className="flex-1 min-h-0 flex relative overflow-y-auto overflow-x-hidden select-none"
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp} // Triggers mouse-up with event
+      >
         <ResourceSidebar
-          resources={localResources} rowHeights={rowHeights}
-          rowDragResourceId={rowDrag?.resourceId} startRowDrag={startRowDrag} renderResource={renderResource}
+          resources={localResources}
+          virtualizer={rowVirtualizer}
+          rowDragResourceId={rowDrag?.resourceId}
+          startRowDrag={startRowDrag}
+          renderResource={renderResource}
+          virtualVersion={virtualVersion}
         />
         <TimelineGrid
-          gridRef={gridRef} rowHeights={rowHeights} isPanning={isPanning}
-          dragPosition={dragPosition} dropIndicator={dropIndicator}
-          onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUpOrLeave={handleMouseUpOrLeave}
-          totalWidth={totalWidth} hours={hours} totalHours={totalHours} formatHourLabel={formatHourLabel}
-          resources={localResources} events={localEvents} rowDragResourceId={rowDrag?.resourceId} selection={selection}
-          totalSlots={totalSlots} dayStartHour={dayStartHour} slotsPerHour={slotsPerHour}
-          getEventGridSpan={getEventGridSpan} startCardDrag={startCardDrag} startCardResize={startCardResize}
-          handleRowPointerDown={handleRowPointerDown} renderEvent={renderEvent} interactionEventId={interaction?.eventId}
+          gridRef={gridRef}
+          virtualizer={rowVirtualizer}
+          isPanning={isPanning}
+          dragPosition={dragPosition}
+          dropIndicator={dropIndicator}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUpOrLeave={handleMouseUpOrLeave}
+          totalWidth={totalWidth}
+          hours={hours}
+          totalHours={totalHours}
+          formatHourLabel={formatHourLabel}
+          resources={localResources}
+          rowDragResourceId={rowDrag?.resourceId}
+          selection={selection}
+          totalSlots={totalSlots}
+          dayStartHour={dayStartHour}
+          slotsPerHour={slotsPerHour}
+          getEventGridSpan={getEventGridSpan}
+          startCardDrag={startCardDrag}
+          startCardResize={startCardResize}
+          handleRowPointerDown={handleRowPointerDown}
+          renderEvent={renderEvent}
+          interactionEventId={interaction?.eventId}
+          rowHeights={layoutEngine.rowHeights}
+          eventLanes={layoutEngine.eventLanes}
+          eventsByResource={layoutEngine.eventsByResource}
+          virtualVersion={virtualVersion}
         />
       </div>
       <JobCreationDialog
