@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { memo } from 'react';
 import type { Resource, EventItem } from './types';
-import { cn } from '@/lib/utils';
 import { EventCard } from './EventCard';
+import { cn } from '@/lib/utils';
 
 interface TimelineGridProps {
   gridRef: React.RefObject<HTMLDivElement | null>;
@@ -16,13 +16,17 @@ interface TimelineGridProps {
   resources: Resource[];
   events: EventItem[];
   rowDragResourceId: string | undefined;
-  selection: {
-    resourceId: string;
-    startSlot: number;
-    currentSlot: number;
-  } | null;
+  selection: { resourceId: string; startSlot: number; currentSlot: number; } | null;
   totalSlots: number;
-  getEventGridSpan: (start: Date, end: Date) => { gridColumnStart: number; gridColumnEnd: number };
+  dayStartHour: number;
+  slotsPerHour: number;
+  getEventGridSpan: (
+    start: Date,
+    end: Date,
+    dayStartHour: number,
+    totalHours: number,
+    slotsPerHour: number
+  ) => { gridColumnStart: number; gridColumnEnd: number };
   startCardDrag: (e: React.PointerEvent, eventId: string) => void;
   startCardResize: (e: React.PointerEvent, eventId: string, direction: 'left' | 'right') => void;
   handleRowPointerDown: (e: React.PointerEvent, resourceId: string) => void;
@@ -32,9 +36,10 @@ interface TimelineGridProps {
     onResizeStart?: (e: React.PointerEvent, direction: 'left' | 'right') => void
   ) => React.ReactNode;
   interactionEventId: string | undefined;
+  rowHeights: Record<string, number>;
 }
 
-export const TimelineGrid: React.FC<TimelineGridProps> = ({
+export const TimelineGrid: React.FC<TimelineGridProps> = memo(({
   gridRef,
   isPanning,
   onMouseDown,
@@ -46,9 +51,12 @@ export const TimelineGrid: React.FC<TimelineGridProps> = ({
   formatHourLabel,
   resources,
   events,
+  rowHeights,
   rowDragResourceId,
   selection,
   totalSlots,
+  dayStartHour,
+  slotsPerHour,
   getEventGridSpan,
   startCardDrag,
   startCardResize,
@@ -76,10 +84,7 @@ export const TimelineGrid: React.FC<TimelineGridProps> = ({
             <div
               key={hour}
               className="absolute text-[10px] font-semibold text-text-secondary border-l border-border/50 h-full flex items-center pl-3"
-              style={{
-                left: `${(idx / totalHours) * 100}%`,
-                width: `${(1 / totalHours) * 100}%`
-              }}
+              style={{ left: `${(idx / totalHours) * 100}%`, width: `${(1 / totalHours) * 100}%` }}
             >
               {formatHourLabel(hour)}
             </div>
@@ -103,8 +108,8 @@ export const TimelineGrid: React.FC<TimelineGridProps> = ({
           {resources.map((resource) => {
             const resourceEvents = events.filter((e) => e.resourceId === resource.id);
             const isDraggingRow = rowDragResourceId === resource.id;
-
             const isSelectedRow = selection && selection.resourceId === resource.id;
+
             const startCol = isSelectedRow ? Math.min(selection.startSlot, selection.currentSlot) : 0;
             const endCol = isSelectedRow ? Math.max(selection.startSlot, selection.currentSlot) : 0;
 
@@ -113,13 +118,14 @@ export const TimelineGrid: React.FC<TimelineGridProps> = ({
                 key={`row-${resource.id}`}
                 onPointerDown={(e) => handleRowPointerDown(e, resource.id)}
                 className={cn(
-                  "h-[140px] border-b border-border flex items-center relative transition-colors cursor-cell",
+                  "border-b border-border flex items-start relative transition-colors cursor-cell",
                   isDraggingRow && "bg-primary/5 border-primary/20"
                 )}
+                style={{ height: `${rowHeights[resource.id] || 140}px` }}
               >
                 {/* Events Placement Area */}
                 <div
-                  className="absolute inset-0 grid items-center px-2 pointer-events-none"
+                  className="absolute inset-0 grid items-start py-4 gap-y-2 px-2 pointer-events-none"
                   style={{ gridTemplateColumns: `repeat(${totalSlots}, minmax(0, 1fr))` }}
                 >
                   {/* Temporary Selection Block Highlight */}
@@ -127,7 +133,7 @@ export const TimelineGrid: React.FC<TimelineGridProps> = ({
                     <div
                       style={{
                         gridColumnStart: startCol + 1,
-                        gridColumnEnd: (startCol === endCol ? startCol + 4 : endCol) + 1,
+                        gridColumnEnd: (startCol === endCol ? startCol + 4 : endCol) + 1
                       }}
                       className="bg-primary/15 border-2 border-dashed border-primary/30 rounded-lg h-[85px] z-0"
                     />
@@ -136,18 +142,17 @@ export const TimelineGrid: React.FC<TimelineGridProps> = ({
                   {resourceEvents.map((event) => {
                     const { gridColumnStart, gridColumnEnd } = getEventGridSpan(
                       event.startTime,
-                      event.endTime
+                      event.endTime,
+                      dayStartHour,
+                      totalHours,
+                      slotsPerHour
                     );
-
                     const isDraggingThis = interactionEventId === event.id;
 
                     return (
                       <div
                         key={event.id}
-                        style={{
-                          gridColumnStart,
-                          gridColumnEnd
-                        }}
+                        style={{ gridColumnStart, gridColumnEnd }}
                         className="pointer-events-auto px-1 z-10"
                       >
                         {renderEvent ? (
@@ -176,4 +181,4 @@ export const TimelineGrid: React.FC<TimelineGridProps> = ({
       </div>
     </div>
   );
-};
+});

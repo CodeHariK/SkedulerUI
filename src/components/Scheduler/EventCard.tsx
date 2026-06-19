@@ -49,7 +49,8 @@ export const EventCard: React.FC<EventCardProps> = ({
           className={cn(
             "flex flex-col justify-between h-[85px] p-3 pl-4 rounded-xl border border-slate-100 bg-white dark:bg-[#1a1a24] dark:border-border/30 text-left shadow-xs hover:shadow transition-all relative select-none touch-none cursor-pointer group",
             borderColors[event.status] || 'border-l-[4px] border-l-blue-500',
-            isDragging && "opacity-60 scale-[1.02] shadow-md border-primary/40 ring-1 ring-primary/20"
+            // ADDED: !transition-none so the drag snaps instantly to the mouse pointer
+            isDragging && "opacity-60 scale-[1.02] shadow-md border-primary/40 ring-1 ring-primary/20 !transition-none"
           )}
           onPointerDown={onDragStart}
         >

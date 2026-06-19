@@ -9,6 +9,7 @@ interface ResourceSidebarProps {
   rowDragResourceId: string | undefined;
   startRowDrag: (e: React.PointerEvent, resourceId: string) => void;
   renderResource?: (resource: Resource, onGripMouseDown?: (e: React.PointerEvent) => void) => React.ReactNode;
+  rowHeights: Record<string, number>;
 }
 
 export const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
@@ -16,6 +17,7 @@ export const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
   rowDragResourceId,
   startRowDrag,
   renderResource,
+  rowHeights,
 }) => {
   const defaultRenderResource = (resource: Resource, onGripMouseDown?: (e: React.PointerEvent) => void) => {
     const role = resource.metadata?.role || '';
@@ -25,9 +27,10 @@ export const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
     return (
       <div
         className={cn(
-          "flex items-center gap-3 h-[140px] px-4 border-b border-border hover:bg-muted/10 transition-colors bg-card relative select-none group",
+          "flex items-center gap-3 px-4 border-b border-border hover:bg-muted/10 transition-colors bg-card relative select-none group",
           isDraggingRow && "opacity-50 border-primary/20 bg-primary/5 z-20 shadow-inner"
         )}
+        style={{ height: `${rowHeights[resource.id] || 140}px` }}
       >
         {/* Grip Icon */}
         <div

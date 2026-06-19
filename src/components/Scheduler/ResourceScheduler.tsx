@@ -1,9 +1,85 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import type { Resource, EventItem } from './types';
 import { TimelineControlsHeader } from './TimelineControlsHeader';
 import { ResourceSidebar } from './ResourceSidebar';
 import { TimelineGrid } from './TimelineGrid';
 import { JobCreationDialog } from './JobCreationDialog';
+
+// --- Pure Helper Functions Extracted Outside ---
+const getHourWidth = (zoom: number) => {
+  switch (zoom) {
+    case 15: return 240;
+    case 30: return 180;
+    case 45: return 140;
+    case 60: return 100;
+    case 90: return 80;
+    case 120: return 60;
+    default: return 100;
+  }
+};
+
+const getEventGridSpan = (start: Date, end: Date, dayStartHour: number, totalHours: number, slotsPerHour: number) => {
+  const startHourObj = start.getHours() + start.getMinutes() / 60;
+  const endHourObj = end.getHours() + end.getMinutes() / 60;
+
+  const relativeStart = Math.max(0, startHourObj - dayStartHour);
+  const relativeEnd = Math.min(totalHours, endHourObj - dayStartHour);
+
+  return {
+    gridColumnStart: Math.round(relativeStart * slotsPerHour) + 1,
+    gridColumnEnd: Math.round(relativeEnd * slotsPerHour) + 1
+  };
+};
+
+const slotToDate = (slot: number, currentDate: Date, dayStartHour: number, slotsPerHour: number) => {
+  const date = new Date(currentDate);
+  const hoursDecimal = dayStartHour + slot / slotsPerHour;
+  const hours = Math.floor(hoursDecimal);
+  const minutes = Math.round((hoursDecimal - hours) * 60);
+  date.setHours(hours, minutes, 0, 0);
+  return date;
+};
+
+const calculateRowHeights = (
+  resources: Resource[],
+  events: EventItem[],
+  baseHeight = 140,
+  cardHeight = 95
+): Record<string, number> => {
+  const heights: Record<string, number> = {};
+
+  resources.forEach(resource => {
+    const resourceEvents = events
+      .filter(e => e.resourceId === resource.id)
+      .sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
+
+    if (resourceEvents.length === 0) {
+      heights[resource.id] = baseHeight;
+      return;
+    }
+
+    const lanes: number[] = [];
+
+    resourceEvents.forEach(event => {
+      let placed = false;
+      for (let i = 0; i < lanes.length; i++) {
+        if (lanes[i] <= event.startTime.getTime()) {
+          lanes[i] = event.endTime.getTime();
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) {
+        lanes.push(event.endTime.getTime());
+      }
+    });
+
+    const requiredHeight = Math.max(baseHeight, lanes.length * cardHeight + 30);
+    heights[resource.id] = requiredHeight;
+  });
+
+  return heights;
+};
 
 export interface ResourceSchedulerProps {
   resources: Resource[];
@@ -33,6 +109,9 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
   onResourcesReorder
 }) => {
   const gridRef = useRef<HTMLDivElement>(null);
+
+  // Ref for throttling high-frequency pointer moves without triggering re-renders
+  const lastInteractionRef = useRef<{ slot: number; resourceId?: string } | null>(null);
 
   // Local states to support instant visual feedback
   const [localResources, setLocalResources] = useState<Resource[]>(resources);
@@ -76,7 +155,7 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
   } | null>(null);
 
   // Add Job Modal Dialog States
-  const [showModal, setShowModal] = useState(false);
+  const [showJobCreationModal, setShowJobCreationModal] = useState(false);
   const [newEventData, setNewEventData] = useState<{
     resourceId: string;
     startTime: Date;
@@ -95,91 +174,53 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
     setLocalEvents(events);
   }, [events]);
 
-  // Time calculations
-  const totalHours = dayEndHour - dayStartHour;
+  // Memoized derived calculations
   const slotsPerHour = 4; // 15-minute slots
-  const totalSlots = totalHours * slotsPerHour;
+  const totalHours = useMemo(() => dayEndHour - dayStartHour, [dayEndHour, dayStartHour]);
+  const totalSlots = useMemo(() => totalHours * slotsPerHour, [totalHours]);
+  const hourWidth = useMemo(() => getHourWidth(zoomMinutes), [zoomMinutes]);
+  const totalWidth = useMemo(() => totalHours * hourWidth, [totalHours, hourWidth]);
+  const slotWidth = useMemo(() => totalWidth / totalSlots, [totalWidth, totalSlots]);
+  const hours = useMemo(() => Array.from({ length: totalHours }, (_, i) => dayStartHour + i), [totalHours, dayStartHour]);
 
-  // Zoom scaling mapping zoomMinutes to hour width (px)
-  const getHourWidth = (zoom: number) => {
-    switch (zoom) {
-      case 15: return 240;
-      case 30: return 180;
-      case 45: return 140;
-      case 60: return 100;
-      case 90: return 80;
-      case 120: return 60;
-      default: return 100;
-    }
-  };
-  const hourWidth = getHourWidth(zoomMinutes);
-  const totalWidth = totalHours * hourWidth;
-  const slotWidth = totalWidth / totalSlots;
+  const rowHeights = useMemo(() => {
+    return calculateRowHeights(localResources, localEvents);
+  }, [localResources, localEvents]);
 
-  // Generate array of hours for header
-  const hours = Array.from({ length: totalHours }, (_, i) => dayStartHour + i);
-
-  const formatHourLabel = (hour: number) => {
+  const formatHourLabel = useCallback((hour: number) => {
     const period = hour >= 12 ? 'PM' : 'AM';
     const displayHour = hour % 12 === 0 ? 12 : hour % 12;
     return `${displayHour} ${period}`;
-  };
+  }, []);
 
-  // Helper to calculate grid columns for an event
-  const getEventGridSpan = (start: Date, end: Date) => {
-    const startHourObj = start.getHours() + start.getMinutes() / 60;
-    const endHourObj = end.getHours() + end.getMinutes() / 60;
-
-    const relativeStart = Math.max(0, startHourObj - dayStartHour);
-    const relativeEnd = Math.min(totalHours, endHourObj - dayStartHour);
-
-    const startSlot = Math.round(relativeStart * slotsPerHour);
-    const endSlot = Math.round(relativeEnd * slotsPerHour);
-
-    return {
-      gridColumnStart: startSlot + 1,
-      gridColumnEnd: endSlot + 1
-    };
-  };
-
-  // Helper to convert grid slot index back to Date object
-  const slotToDate = (slot: number) => {
-    const date = new Date(currentDate);
-    const hoursDecimal = dayStartHour + slot / slotsPerHour;
-    const hours = Math.floor(hoursDecimal);
-    const minutes = Math.round((hoursDecimal - hours) * 60);
-    date.setHours(hours, minutes, 0, 0);
-    return date;
-  };
-
-  // Pan scroll handlers (only runs when not dragging/resizing a card, row, or selecting)
-  const handleMouseDown = (e: React.MouseEvent) => {
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if (interaction || rowDrag || selection || !gridRef.current) return;
     setIsPanning(true);
     setStartX(e.pageX - gridRef.current.offsetLeft);
     setScrollLeft(gridRef.current.scrollLeft);
-  };
+  }, [interaction, rowDrag, selection]);
 
-  const handleMouseMove = (e: React.MouseEvent) => {
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!isPanning || interaction || rowDrag || selection || !gridRef.current) return;
     e.preventDefault();
-    const x = e.pageX - gridRef.current.offsetLeft;
-    const walk = (x - startX) * 1.5;
+    const walk = ((e.pageX - gridRef.current.offsetLeft) - startX) * 1.5;
     gridRef.current.scrollLeft = scrollLeft - walk;
-  };
+  }, [isPanning, interaction, rowDrag, selection, startX, scrollLeft]);
 
-  const handleMouseUpOrLeave = () => {
+  const handleMouseUpOrLeave = useCallback(() => {
     setIsPanning(false);
-  };
+  }, []);
 
-  // Card Pointer Events for dragging & resizing
-  const startCardDrag = (e: React.PointerEvent, eventId: string) => {
+  const startCardDrag = useCallback((e: React.PointerEvent, eventId: string) => {
     e.preventDefault();
     e.stopPropagation();
     const event = localEvents.find(evt => evt.id === eventId);
     if (!event) return;
 
-    const { gridColumnStart, gridColumnEnd } = getEventGridSpan(event.startTime, event.endTime);
+    const { gridColumnStart, gridColumnEnd } = getEventGridSpan(event.startTime, event.endTime, dayStartHour, totalHours, slotsPerHour);
+
+    // Reset throttle ref
+    lastInteractionRef.current = { slot: gridColumnStart - 1, resourceId: event.resourceId };
 
     setInteraction({
       eventId,
@@ -190,15 +231,16 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
       startColEnd: gridColumnEnd - 1,
       startResourceId: event.resourceId
     });
-  };
+  }, [localEvents, dayStartHour, totalHours, slotsPerHour]);
 
-  const startCardResize = (e: React.PointerEvent, eventId: string, direction: 'left' | 'right') => {
+  const startCardResize = useCallback((e: React.PointerEvent, eventId: string, direction: 'left' | 'right') => {
     e.preventDefault();
     e.stopPropagation();
     const event = localEvents.find(evt => evt.id === eventId);
     if (!event) return;
 
-    const { gridColumnStart, gridColumnEnd } = getEventGridSpan(event.startTime, event.endTime);
+    const { gridColumnStart, gridColumnEnd } = getEventGridSpan(event.startTime, event.endTime, dayStartHour, totalHours, slotsPerHour);
+    lastInteractionRef.current = { slot: direction === 'left' ? gridColumnStart - 1 : gridColumnEnd - 1 };
 
     setInteraction({
       eventId,
@@ -210,19 +252,15 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
       startResourceId: event.resourceId,
       resizeDirection: direction
     });
-  };
+  }, [localEvents, dayStartHour, totalHours, slotsPerHour]);
 
-  // Empty Row drag selection handler
-  const handleRowPointerDown = (e: React.PointerEvent, resourceId: string) => {
-    if (e.target !== e.currentTarget) return;
+  const handleRowPointerDown = useCallback((e: React.PointerEvent, resourceId: string) => {
+    if (e.target !== e.currentTarget || !gridRef.current) return;
     e.preventDefault();
     e.stopPropagation();
 
-    const gridEl = gridRef.current;
-    if (!gridEl) return;
-
-    const gridRect = gridEl.getBoundingClientRect();
-    const clientXRelative = e.clientX - gridRect.left + gridEl.scrollLeft;
+    const gridRect = gridRef.current.getBoundingClientRect();
+    const clientXRelative = e.clientX - gridRect.left + gridRef.current.scrollLeft;
     const slotIdx = Math.max(0, Math.floor(clientXRelative / slotWidth));
 
     setSelection({
@@ -230,10 +268,10 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
       startSlot: slotIdx,
       currentSlot: slotIdx
     });
-  };
+    lastInteractionRef.current = { slot: slotIdx };
+  }, [slotWidth]);
 
-  // Row Pointer Events for reordering rows
-  const startRowDrag = (e: React.PointerEvent, resourceId: string) => {
+  const startRowDrag = useCallback((e: React.PointerEvent, resourceId: string) => {
     e.preventDefault();
     e.stopPropagation();
     const idx = localResources.findIndex(r => r.id === resourceId);
@@ -244,24 +282,28 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
       startY: e.clientY,
       currentIndex: idx
     });
-  };
+  }, [localResources]);
 
-  const handlePointerMove = (e: React.PointerEvent) => {
+  const handlePointerMove = useCallback((e: React.PointerEvent) => {
+    const gridEl = gridRef.current;
+    if (!gridEl) return;
+
     if (interaction) {
-      const gridEl = gridRef.current;
-      if (!gridEl) return;
-
       const gridRect = gridEl.getBoundingClientRect();
 
       if (interaction.type === 'resize') {
         const clientXRelative = e.clientX - gridRect.left + gridEl.scrollLeft;
         const currentSlot = Math.max(0, Math.floor(clientXRelative / slotWidth));
 
+        // Throttle check
+        if (lastInteractionRef.current?.slot === currentSlot) return;
+        lastInteractionRef.current = { slot: currentSlot };
+
         if (interaction.resizeDirection === 'left') {
           const newStartSlot = Math.max(0, Math.min(interaction.startColEnd - 1, currentSlot));
           setLocalEvents(prev => prev.map(evt => {
             if (evt.id === interaction.eventId) {
-              return { ...evt, startTime: slotToDate(newStartSlot) };
+              return { ...evt, startTime: slotToDate(newStartSlot, currentDate, dayStartHour, slotsPerHour) };
             }
             return evt;
           }));
@@ -269,22 +311,42 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
           const newEndSlot = Math.max(interaction.startColStart + 1, Math.min(totalSlots, currentSlot));
           setLocalEvents(prev => prev.map(evt => {
             if (evt.id === interaction.eventId) {
-              return { ...evt, endTime: slotToDate(newEndSlot) };
+              return { ...evt, endTime: slotToDate(newEndSlot, currentDate, dayStartHour, slotsPerHour) };
             }
             return evt;
           }));
         }
       } else if (interaction.type === 'move') {
-        const containerRect = gridEl.getBoundingClientRect();
-        const relativeY = e.clientY - containerRect.top + gridEl.scrollTop;
-        const gridY = relativeY - 56;
-        const rowIdx = Math.max(0, Math.min(localResources.length - 1, Math.floor(gridY / 140)));
-        const targetResource = localResources[rowIdx];
+        const relativeY = e.clientY - gridRect.top + gridEl.scrollTop;
+        const gridY = relativeY - 56; // Header offset
+
+        // FIXED: Replaced Math.floor(gridY / 140) with dynamic height accumulation
+        let accumulatedHeight = 0;
+        let targetRowIdx = localResources.length - 1; // default to last
+
+        for (let i = 0; i < localResources.length; i++) {
+          const rId = localResources[i].id;
+          const h = rowHeights[rId] || 140;
+          accumulatedHeight += h;
+
+          if (gridY <= accumulatedHeight) {
+            targetRowIdx = i;
+            break;
+          }
+        }
+
+        targetRowIdx = Math.max(0, Math.min(localResources.length - 1, targetRowIdx));
+        const targetResource = localResources[targetRowIdx];
 
         const deltaX = e.clientX - interaction.startX;
         const deltaSlots = Math.round(deltaX / slotWidth);
         const durationSlots = interaction.startColEnd - interaction.startColStart;
         const newStartSlot = Math.max(0, Math.min(totalSlots - durationSlots, interaction.startColStart + deltaSlots));
+
+        // Throttle check
+        if (lastInteractionRef.current?.slot === newStartSlot && lastInteractionRef.current?.resourceId === targetResource.id) return;
+        lastInteractionRef.current = { slot: newStartSlot, resourceId: targetResource.id };
+
         const newEndSlot = newStartSlot + durationSlots;
 
         setLocalEvents(prev => prev.map(evt => {
@@ -292,45 +354,61 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
             return {
               ...evt,
               resourceId: targetResource.id,
-              startTime: slotToDate(newStartSlot),
-              endTime: slotToDate(newEndSlot)
+              startTime: slotToDate(newStartSlot, currentDate, dayStartHour, slotsPerHour),
+              endTime: slotToDate(newEndSlot, currentDate, dayStartHour, slotsPerHour)
             };
           }
           return evt;
         }));
       }
     } else if (rowDrag) {
-      const deltaY = e.clientY - rowDrag.startY;
-      const indexShift = Math.round(deltaY / 140);
+      // FIXED: Also fixed Row Dragging to respect dynamic heights
+      const gridRect = gridEl.getBoundingClientRect();
+      const relativeY = e.clientY - gridRect.top + gridEl.scrollTop;
+      const gridY = relativeY - 56;
 
-      if (indexShift !== 0) {
-        const newIndex = Math.max(0, Math.min(localResources.length - 1, rowDrag.currentIndex + indexShift));
-        if (newIndex !== rowDrag.currentIndex) {
-          const reordered = [...localResources];
-          const [draggedItem] = reordered.splice(rowDrag.currentIndex, 1);
-          reordered.splice(newIndex, 0, draggedItem);
+      let accumulatedHeight = 0;
+      let newIndex = localResources.length - 1;
 
-          setLocalResources(reordered);
-          setRowDrag({
-            resourceId: rowDrag.resourceId,
-            startY: e.clientY,
-            currentIndex: newIndex
-          });
+      for (let i = 0; i < localResources.length; i++) {
+        const rId = localResources[i].id;
+        const h = rowHeights[rId] || 140;
+        accumulatedHeight += h;
+
+        if (gridY <= accumulatedHeight) {
+          newIndex = i;
+          break;
         }
       }
-    } else if (selection) {
-      const gridEl = gridRef.current;
-      if (!gridEl) return;
 
+      newIndex = Math.max(0, Math.min(localResources.length - 1, newIndex));
+
+      if (newIndex !== rowDrag.currentIndex) {
+        const reordered = [...localResources];
+        const [draggedItem] = reordered.splice(rowDrag.currentIndex, 1);
+        reordered.splice(newIndex, 0, draggedItem);
+
+        setLocalResources(reordered);
+        setRowDrag({
+          resourceId: rowDrag.resourceId,
+          startY: e.clientY,
+          currentIndex: newIndex
+        });
+      }
+    } else if (selection) {
       const gridRect = gridEl.getBoundingClientRect();
       const clientXRelative = e.clientX - gridRect.left + gridEl.scrollLeft;
       const slotIdx = Math.max(0, Math.min(totalSlots, Math.floor(clientXRelative / slotWidth)));
 
+      // Throttle check
+      if (lastInteractionRef.current?.slot === slotIdx) return;
+      lastInteractionRef.current = { slot: slotIdx };
+
       setSelection(prev => prev ? { ...prev, currentSlot: slotIdx } : null);
     }
-  };
+  }, [interaction, rowDrag, selection, localResources, slotWidth, totalSlots, currentDate, dayStartHour, slotsPerHour, rowHeights]);
 
-  const handlePointerUp = () => {
+  const handlePointerUp = useCallback(() => {
     if (interaction) {
       const finalEvent = localEvents.find(evt => evt.id === interaction.eventId);
       if (finalEvent && onEventChange) {
@@ -349,39 +427,40 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
 
       setNewEventData({
         resourceId: selection.resourceId,
-        startTime: slotToDate(start),
-        endTime: slotToDate(finalEnd),
+        startTime: slotToDate(start, currentDate, dayStartHour, slotsPerHour),
+        endTime: slotToDate(finalEnd, currentDate, dayStartHour, slotsPerHour),
         title: 'New Job',
         location: '',
         price: 150,
         status: 'New'
       });
-      setShowModal(true);
+      setShowJobCreationModal(true);
       setSelection(null);
     }
-  };
+    lastInteractionRef.current = null;
+  }, [interaction, rowDrag, selection, localEvents, localResources, currentDate, dayStartHour, slotsPerHour, onEventChange, onResourcesReorder]);
 
-  const handleCreateJobHeader = () => {
+  const handleCreateJobHeader = useCallback(() => {
     setNewEventData({
       resourceId: localResources[0]?.id || '',
-      startTime: slotToDate(0),
-      endTime: slotToDate(4),
+      startTime: slotToDate(0, currentDate, dayStartHour, slotsPerHour),
+      endTime: slotToDate(4, currentDate, dayStartHour, slotsPerHour),
       title: '',
       location: '',
       price: 150,
       status: 'New'
     });
-    setShowModal(true);
-  };
+    setShowJobCreationModal(true);
+  }, [localResources, currentDate, dayStartHour, slotsPerHour]);
 
-  const handleReset = () => {
+  const handleReset = useCallback(() => {
     setCurrentDate(new Date('2026-06-18'));
     setZoomMinutes(60);
     setLocalResources(resources);
     setLocalEvents(events);
-  };
+  }, [resources, events]);
 
-  const handleThemeToggle = () => {
+  const handleThemeToggle = useCallback(() => {
     const nextTheme = theme === 'light' ? 'dark' : 'light';
     setTheme(nextTheme);
     if (nextTheme === 'dark') {
@@ -389,7 +468,30 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
     } else {
       document.documentElement.classList.remove('dark');
     }
-  };
+  }, [theme]);
+
+  const handleSaveJob = useCallback(() => {
+    if (newEventData) {
+      const newlyCreatedEvent: EventItem = {
+        id: `job-created-${Date.now()}`,
+        resourceId: newEventData.resourceId,
+        title: newEventData.title || 'New Job',
+        startTime: newEventData.startTime,
+        endTime: newEventData.endTime,
+        status: newEventData.status,
+        metadata: {
+          location: newEventData.location,
+          price: newEventData.price
+        }
+      };
+      setLocalEvents(prev => [...prev, newlyCreatedEvent]);
+      if (onEventAdd) {
+        onEventAdd(newlyCreatedEvent);
+      }
+    }
+    setShowJobCreationModal(false);
+    setNewEventData(null);
+  }, [newEventData, onEventAdd]);
 
   return (
     <div className="flex flex-col w-full h-full flex-1 bg-background overflow-hidden relative transition-colors duration-200">
@@ -415,6 +517,7 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
       >
         <ResourceSidebar
           resources={localResources}
+          rowHeights={rowHeights}
           rowDragResourceId={rowDrag?.resourceId}
           startRowDrag={startRowDrag}
           renderResource={renderResource}
@@ -422,6 +525,7 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
 
         <TimelineGrid
           gridRef={gridRef}
+          rowHeights={rowHeights}
           isPanning={isPanning}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
@@ -435,6 +539,8 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
           rowDragResourceId={rowDrag?.resourceId}
           selection={selection}
           totalSlots={totalSlots}
+          dayStartHour={dayStartHour}
+          slotsPerHour={slotsPerHour}
           getEventGridSpan={getEventGridSpan}
           startCardDrag={startCardDrag}
           startCardResize={startCardResize}
@@ -445,35 +551,14 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
       </div>
 
       <JobCreationDialog
-        isOpen={showModal}
+        isOpen={showJobCreationModal}
         onClose={() => {
-          setShowModal(false);
+          setShowJobCreationModal(false);
           setNewEventData(null);
         }}
         newEventData={newEventData}
         onChange={setNewEventData}
-        onSave={() => {
-          if (newEventData) {
-            const newlyCreatedEvent: EventItem = {
-              id: `job-created-${Date.now()}`,
-              resourceId: newEventData.resourceId,
-              title: newEventData.title || 'New Job',
-              startTime: newEventData.startTime,
-              endTime: newEventData.endTime,
-              status: newEventData.status,
-              metadata: {
-                location: newEventData.location,
-                price: newEventData.price
-              }
-            };
-            setLocalEvents(prev => [...prev, newlyCreatedEvent]);
-            if (onEventAdd) {
-              onEventAdd(newlyCreatedEvent);
-            }
-          }
-          setShowModal(false);
-          setNewEventData(null);
-        }}
+        onSave={handleSaveJob}
         resources={localResources}
       />
     </div>
