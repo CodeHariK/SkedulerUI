@@ -19,7 +19,7 @@ export const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
   renderResource,
   rowHeights,
 }) => {
-  const defaultRenderResource = (resource: Resource, onGripMouseDown?: (e: React.PointerEvent) => void) => {
+  const defaultRenderResource = (resource: Resource, index: number, onGripMouseDown?: (e: React.PointerEvent) => void) => {
     const role = resource.metadata?.role || '';
     const jobsCount = resource.metadata?.jobsCount || 0;
     const isDraggingRow = rowDragResourceId === resource.id;
@@ -27,10 +27,13 @@ export const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
     return (
       <div
         className={cn(
-          "flex items-center gap-3 px-4 border-b border-border hover:bg-muted/10 transition-colors bg-card relative select-none group",
+          "flex items-center gap-3 px-4 border-b border-border hover:bg-muted/10 transition-colors relative select-none group",
           isDraggingRow && "opacity-50 border-primary/20 bg-primary/5 z-20 shadow-inner"
         )}
-        style={{ height: `${rowHeights[resource.id] || 140}px` }}
+        style={{ 
+          height: `${rowHeights[resource.id] || 140}px`,
+          backgroundColor: index % 2 === 0 ? 'rgb(250, 250, 250)' : 'rgb(247, 247, 247)'
+        }}
       >
         {/* Grip Icon */}
         <div
@@ -76,11 +79,11 @@ export const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
       </div>
       {/* Resource list items */}
       <div className="flex flex-col">
-        {resources.map((resource) => (
+        {resources.map((resource, index) => (
           <React.Fragment key={resource.id}>
             {renderResource
               ? renderResource(resource, (e) => startRowDrag(e, resource.id))
-              : defaultRenderResource(resource, (e) => startRowDrag(e, resource.id))}
+              : defaultRenderResource(resource, index, (e) => startRowDrag(e, resource.id))}
           </React.Fragment>
         ))}
       </div>

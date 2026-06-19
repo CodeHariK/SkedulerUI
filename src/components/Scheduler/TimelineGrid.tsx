@@ -123,17 +123,7 @@ export const TimelineGrid: React.FC<TimelineGridProps> = memo(({
 
         {/* Grid Body */}
         <div className="flex flex-col relative">
-          <div className="absolute inset-0 pointer-events-none flex">
-            {hours.map((hour, idx) => (
-              <div
-                key={`line-${hour}`}
-                className="absolute h-full border-l border-border/20"
-                style={{ left: `${(idx / totalHours) * 100}%` }}
-              />
-            ))}
-          </div>
-
-          {resources.map((resource) => {
+          {resources.map((resource, index) => {
             const resourceEvents = events.filter((e) => e.resourceId === resource.id);
             const eventLanes = assignEventLanes(resourceEvents);
 
@@ -152,7 +142,10 @@ export const TimelineGrid: React.FC<TimelineGridProps> = memo(({
                   "border-b border-border flex items-start relative transition-colors cursor-cell",
                   isDraggingRow && "bg-primary/5 border-primary/20"
                 )}
-                style={{ height: `${rowHeights[resource.id] || 140}px` }}
+                style={{ 
+                  height: `${rowHeights[resource.id] || 140}px`,
+                  backgroundColor: index % 2 === 0 ? 'rgb(250, 250, 250)' : 'rgb(247, 247, 247)'
+                }}
               >
                 {/* Events Placement Area */}
                 <div
@@ -209,7 +202,6 @@ export const TimelineGrid: React.FC<TimelineGridProps> = memo(({
                           transform: transformStyle,
                           zIndex: isDraggingThis ? 50 : 10
                         }}
-                        // FIXED: Stripped out transition-all so layout resets happen instantly!
                         className={cn(
                           "pointer-events-auto px-1 relative",
                           isDraggingThis && "opacity-90"
@@ -237,6 +229,17 @@ export const TimelineGrid: React.FC<TimelineGridProps> = memo(({
               </div>
             );
           })}
+
+          {/* Grid Column Line Separators Overlay */}
+          <div className="absolute inset-0 pointer-events-none flex">
+            {hours.map((hour, idx) => (
+              <div
+                key={`line-${hour}`}
+                className="absolute h-full border-l border-border"
+                style={{ left: `${(idx / totalHours) * 100}%` }}
+              />
+            ))}
+          </div>
         </div>
       </div>
     </div>
