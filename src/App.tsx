@@ -10,7 +10,7 @@ function App() {
   // Generate stress test data with 1000 resources and associated events.
   // Memoized so it doesn't regenerate on every render.
   const { stressResources, stressEvents } = useMemo(() => {
-    const { resources, events } = generateStressTestData(100);
+    const { resources, events } = generateStressTestData(400);
     return { stressResources: resources, stressEvents: events };
   }, []);
 

@@ -12,11 +12,12 @@ interface EventCardProps {
   event: EventItem;
   resource?: Resource;
   isDragging: boolean;
-  onDragStart: (e: React.PointerEvent) => void;
-  onResizeStart: (e: React.PointerEvent, direction: 'left' | 'right') => void;
+  // FIXED: Changed signatures to accept eventId internally so we can pass stable refs
+  onDragStart: (e: React.PointerEvent, eventId: string) => void;
+  onResizeStart: (e: React.PointerEvent, eventId: string, direction: 'left' | 'right') => void;
 }
 
-export const EventCard: React.FC<EventCardProps> = ({
+export const EventCard: React.FC<EventCardProps> = React.memo(({
   event,
   resource,
   isDragging,
@@ -32,11 +33,10 @@ export const EventCard: React.FC<EventCardProps> = ({
   };
 
   const role = resource?.metadata?.role || '';
-  const borderClass = role === 'ELECTRICAL' 
-    ? 'border-l-[#CF4523]' 
+  const borderClass = role === 'ELECTRICAL'
+    ? 'border-l-[#CF4523]'
     : 'border-l-[#2563eb]';
 
-  // Determine dispatch status to match Figma screenshot
   const isDispatched = getIsDispatched(event);
 
   return (
@@ -52,7 +52,8 @@ export const EventCard: React.FC<EventCardProps> = ({
           )}
           onPointerDown={(e) => {
             dragStartPos.current = { x: e.clientX, y: e.clientY };
-            onDragStart(e);
+            // Pass the ID up from inside the memoized component
+            onDragStart(e, event.id);
           }}
           onClickCapture={(e) => {
             const dx = Math.abs(e.clientX - dragStartPos.current.x);
@@ -68,7 +69,7 @@ export const EventCard: React.FC<EventCardProps> = ({
             className="absolute left-0 top-0 w-2.5 h-full cursor-ew-resize z-20 flex items-center justify-start rounded-l-xl opacity-0 group-hover:opacity-100 transition-opacity"
             onPointerDown={(e) => {
               e.stopPropagation();
-              onResizeStart(e, 'left');
+              onResizeStart(e, event.id, 'left');
             }}
           >
             <div className="w-1 h-1/2 bg-primary/40 rounded-r-md" />
@@ -79,7 +80,7 @@ export const EventCard: React.FC<EventCardProps> = ({
             className="absolute right-0 top-0 w-2.5 h-full cursor-ew-resize z-20 flex items-center justify-end rounded-r-xl opacity-0 group-hover:opacity-100 transition-opacity"
             onPointerDown={(e) => {
               e.stopPropagation();
-              onResizeStart(e, 'right');
+              onResizeStart(e, event.id, 'right');
             }}
           >
             <div className="w-1 h-1/2 bg-primary/40 rounded-l-md" />
@@ -118,4 +119,4 @@ export const EventCard: React.FC<EventCardProps> = ({
       <EventDetailPopover event={event} resource={resource} />
     </Popover>
   );
-};
+});

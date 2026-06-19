@@ -9,7 +9,9 @@ interface ResourceSidebarProps {
   resources: Resource[];
   virtualRows: VirtualItem[];
   totalSize: number;
-  rowDragResourceId: string | undefined;
+  rowDrag: { resourceId: string; currentIndex: number } | null;
+  rowDropIndicator: number | null;
+  draggedSidebarRowRef: React.RefObject<HTMLDivElement | null>;
   startRowDrag: (e: React.PointerEvent, resourceId: string) => void;
   renderResource?: (resource: Resource, onGripMouseDown?: (e: React.PointerEvent) => void) => React.ReactNode;
 }
@@ -18,25 +20,18 @@ export const ResourceSidebar: React.FC<ResourceSidebarProps> = React.memo(({
   resources,
   virtualRows,
   totalSize,
-  rowDragResourceId,
+  rowDrag,
+  rowDropIndicator,
+  draggedSidebarRowRef,
   startRowDrag,
   renderResource,
 }) => {
-  const defaultRenderResource = (resource: Resource, index: number, onGripMouseDown?: (e: React.PointerEvent) => void) => {
+  const defaultRenderResource = (resource: Resource, onGripMouseDown?: (e: React.PointerEvent) => void) => {
     const role = resource.metadata?.role || '';
     const jobsCount = resource.metadata?.jobsCount || 0;
-    const isDraggingRow = rowDragResourceId === resource.id;
 
     return (
-      <div
-        className={cn(
-          "flex items-center gap-3 px-4 border-b border-border hover:bg-muted/10 transition-colors relative select-none group h-full",
-          isDraggingRow && "opacity-50 border-primary/20 bg-primary/5 z-20 shadow-inner"
-        )}
-        style={{
-          backgroundColor: index % 2 === 0 ? 'var(--row-bg-even)' : 'var(--row-bg-odd)'
-        }}
-      >
+      <>
         {/* Grip Icon */}
         <div
           className="text-muted-foreground/40 cursor-grab touch-none hover:text-text-primary rounded hover:bg-muted/50 transition-all duration-200 ease-in-out w-0 opacity-0 overflow-hidden group-hover:w-7 group-hover:opacity-100 flex items-center justify-center shrink-0"
@@ -67,8 +62,7 @@ export const ResourceSidebar: React.FC<ResourceSidebarProps> = React.memo(({
               </span>)}
           </div>
         </div>
-
-      </div>
+      </>
     );
   };
 
@@ -84,21 +78,45 @@ export const ResourceSidebar: React.FC<ResourceSidebarProps> = React.memo(({
         {virtualRows.map((virtualRow) => {
           const resource = resources[virtualRow.index];
           if (!resource) return null;
+
+          const isDraggingRow = rowDrag?.resourceId === resource.id;
+
           return (
             <div
               key={virtualRow.key}
               style={{
                 position: 'absolute',
-                top: 0,   // FIXED: Critical for virtualizer positioning!
-                left: 0,  // FIXED: Critical for virtualizer positioning!
+                top: 0,
+                left: 0,
                 width: '100%',
                 height: `${virtualRow.size}px`,
                 transform: `translateY(${virtualRow.start}px)`,
               }}
             >
-              {renderResource
-                ? renderResource(resource, (e) => startRowDrag(e, resource.id))
-                : defaultRenderResource(resource, virtualRow.index, (e) => startRowDrag(e, resource.id))}
+              <div
+                ref={isDraggingRow ? draggedSidebarRowRef : null}
+                className={cn(
+                  "flex items-center gap-3 px-4 border-b border-border hover:bg-muted/10 transition-colors relative select-none group h-full",
+                  isDraggingRow && "opacity-90 border-primary/20 bg-primary/5 z-50 shadow-xl !transition-none"
+                )}
+                style={{
+                  backgroundColor: virtualRow.index % 2 === 0 ? 'var(--row-bg-even)' : 'var(--row-bg-odd)',
+                  zIndex: isDraggingRow ? 50 : 1,
+                  transform: isDraggingRow ? undefined : 'translate3d(0,0,0)'
+                }}
+              >
+                {renderResource
+                  ? renderResource(resource, (e) => startRowDrag(e, resource.id))
+                  : defaultRenderResource(resource, (e) => startRowDrag(e, resource.id))}
+              </div>
+
+              {/* FIXED: Row Drop Insertion Line */}
+              {rowDropIndicator === virtualRow.index && !isDraggingRow && rowDrag && (
+                <div
+                  className="absolute left-0 right-0 h-0.5 bg-primary z-40 pointer-events-none"
+                  style={{ top: rowDropIndicator > rowDrag.currentIndex ? '100%' : '0px' }}
+                />
+              )}
             </div>
           );
         })}

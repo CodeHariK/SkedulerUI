@@ -7,8 +7,11 @@ import type { VirtualItem } from '@tanstack/react-virtual';
 interface TimelineGridProps {
   gridRef: React.RefObject<HTMLDivElement | null>;
   draggedElementRef: React.RefObject<HTMLDivElement | null>;
+  draggedGridRowRef: React.RefObject<HTMLDivElement | null>;
   dropIndicator: { resourceId: string; startCol: number; endCol: number } | null;
   resizeIndicator: { eventId: string; startCol: number; endCol: number } | null;
+  rowDrag: { resourceId: string; currentIndex: number } | null;
+  rowDropIndicator: number | null;
   isPanning: boolean;
   onMouseDown: (e: React.MouseEvent) => void;
   onMouseMove: (e: React.MouseEvent) => void;
@@ -18,32 +21,29 @@ interface TimelineGridProps {
   totalHours: number;
   formatHourLabel: (hour: number) => string;
   resources: Resource[];
-  rowDragResourceId: string | undefined;
   selection: { resourceId: string; startSlot: number; currentSlot: number; } | null;
   totalSlots: number;
-  dayStartHour: number;
-  slotsPerHour: number;
-  getEventGridSpan: (start: Date, end: Date, dayStartHour: number, totalHours: number, slotsPerHour: number) => { gridColumnStart: number; gridColumnEnd: number };
   startCardDrag: (e: React.PointerEvent, eventId: string) => void;
   startCardResize: (e: React.PointerEvent, eventId: string, direction: 'left' | 'right') => void;
   handleRowPointerDown: (e: React.PointerEvent, resourceId: string) => void;
-  renderEvent?: (event: EventItem, onDragStart?: (e: React.PointerEvent) => void, onResizeStart?: (e: React.PointerEvent, direction: 'left' | 'right') => void) => React.ReactNode;
+  renderEvent?: (event: EventItem, onDragStart?: (e: React.PointerEvent, eventId: string) => void, onResizeStart?: (e: React.PointerEvent, eventId: string, direction: 'left' | 'right') => void) => React.ReactNode;
   interactionEventId: string | undefined;
   virtualRows: VirtualItem[];
   totalSize: number;
   rowHeights: Record<string, number>;
   eventLanes: Record<string, number>;
+  eventSpans: Record<string, { gridColumnStart: number; gridColumnEnd: number }>;
   eventsByResource: Record<string, EventItem[]>;
 }
 
 export const TimelineGrid: React.FC<TimelineGridProps> = memo(({
-  gridRef, draggedElementRef, dropIndicator, resizeIndicator, isPanning,
+  gridRef, draggedElementRef, draggedGridRowRef, dropIndicator, resizeIndicator, rowDrag, rowDropIndicator, isPanning,
   onMouseDown, onMouseMove, onMouseUpOrLeave,
   totalWidth, hours, totalHours, formatHourLabel, resources,
-  rowDragResourceId, selection, totalSlots, dayStartHour, slotsPerHour,
-  getEventGridSpan, startCardDrag, startCardResize, handleRowPointerDown,
+  selection, totalSlots,
+  startCardDrag, startCardResize, handleRowPointerDown,
   renderEvent, interactionEventId,
-  virtualRows, totalSize, rowHeights, eventLanes, eventsByResource,
+  virtualRows, totalSize, rowHeights, eventLanes, eventSpans, eventsByResource,
 }) => {
   return (
     <div
@@ -80,107 +80,124 @@ export const TimelineGrid: React.FC<TimelineGridProps> = memo(({
 
               const resourceEvents = eventsByResource[resource.id] || [];
 
-              const isDraggingRow = rowDragResourceId === resource.id;
+              const isDraggingRow = rowDrag?.resourceId === resource.id;
               const isSelectedRow = selection && selection.resourceId === resource.id;
               const isDropTargetRow = dropIndicator && dropIndicator.resourceId === resource.id;
 
               const startCol = isSelectedRow ? Math.min(selection.startSlot, selection.currentSlot) : 0;
               const endCol = isSelectedRow ? Math.max(selection.startSlot, selection.currentSlot) : 0;
 
+              const rowStyle: React.CSSProperties = {
+                backgroundColor: virtualRow.index % 2 === 0 ? 'var(--row-bg-even)' : 'var(--row-bg-odd)',
+                zIndex: isDraggingRow ? 50 : 1
+              };
+              if (!isDraggingRow) {
+                rowStyle.transform = 'translate3d(0,0,0)';
+              }
+
               return (
                 <div
                   key={`row-${resource.id}`}
                   data-index={virtualRow.index}
-                  onPointerDown={(e) => handleRowPointerDown(e, resource.id)}
-                  className={cn(
-                    "border-b border-border absolute w-full flex items-start transition-colors cursor-cell",
-                    isDraggingRow && "bg-primary/5 border-primary/20"
-                  )}
+                  className="absolute w-full"
                   style={{
                     top: 0, left: 0,
                     height: `${rowHeights[resource.id] || 140}px`,
                     transform: `translateY(${virtualRow.start}px)`,
-                    backgroundColor: virtualRow.index % 2 === 0 ? 'var(--row-bg-even)' : 'var(--row-bg-odd)'
                   }}
                 >
                   <div
-                    className="absolute inset-0 grid content-center gap-y-2 px-2 pointer-events-none"
-                    style={{ gridTemplateColumns: `repeat(${totalSlots}, minmax(0, 1fr))` }}
+                    ref={isDraggingRow ? draggedGridRowRef : null}
+                    onPointerDown={(e) => handleRowPointerDown(e, resource.id)}
+                    className={cn(
+                      "border-b border-border absolute w-full h-full flex items-start transition-colors cursor-cell",
+                      isDraggingRow && "bg-primary/5 border-primary/20 shadow-xl !transition-none"
+                    )}
+                    style={rowStyle}
                   >
-                    {isSelectedRow && (
-                      <div
-                        style={{ gridColumnStart: startCol + 1, gridColumnEnd: (startCol === endCol ? startCol + 4 : endCol) + 1, gridRowStart: 1 }}
-                        className="bg-primary/15 border-2 border-dashed border-primary/30 rounded-lg h-[85px] z-0 mx-1"
-                      />
-                    )}
+                    <div
+                      className="absolute inset-0 grid content-center gap-y-2 px-2 pointer-events-none"
+                      style={{ gridTemplateColumns: `repeat(${totalSlots}, minmax(0, 1fr))` }}
+                    >
+                      {/* FIXED: Elevated Z-Index and Solid Border for Empty Slot Selection */}
+                      {isSelectedRow && (
+                        <div
+                          style={{ gridColumnStart: startCol + 1, gridColumnEnd: (startCol === endCol ? startCol + 4 : endCol) + 1, gridRowStart: 1 }}
+                          className="bg-primary/10 border-2 border-dashed border-primary rounded-xl h-[85px] z-30 mx-1 pointer-events-none"
+                        />
+                      )}
 
-                    {isDropTargetRow && dropIndicator && (
-                      <div
-                        style={{ gridColumnStart: dropIndicator.startCol + 1, gridColumnEnd: dropIndicator.endCol + 1, gridRowStart: 1 }}
-                        className="bg-primary/10 border-2 border-dashed border-primary/40 rounded-xl h-[85px] z-20 mx-1"
-                      />
-                    )}
+                      {/* FIXED: Elevated Z-Index and Solid Border for Drag Drop Placeholder */}
+                      {isDropTargetRow && dropIndicator && (
+                        <div
+                          style={{ gridColumnStart: dropIndicator.startCol + 1, gridColumnEnd: dropIndicator.endCol + 1, gridRowStart: 1 }}
+                          className="bg-primary/20 border-2 border-dashed border-primary rounded-xl h-[85px] z-30 mx-1 pointer-events-none"
+                        />
+                      )}
 
-                    {resourceEvents.map((event) => {
-                      const { gridColumnStart, gridColumnEnd } = getEventGridSpan(event.startTime, event.endTime, dayStartHour, totalHours, slotsPerHour);
-                      const lane = eventLanes[event.id] || 1;
+                      {resourceEvents.map((event) => {
+                        const { gridColumnStart, gridColumnEnd } = eventSpans[event.id] || { gridColumnStart: 1, gridColumnEnd: 1 };
+                        const lane = eventLanes[event.id] || 1;
 
-                      const isDraggingThis = interactionEventId === event.id && dropIndicator !== null;
-                      const isResizingThis = interactionEventId === event.id && resizeIndicator !== null;
+                        const isDraggingThis = interactionEventId === event.id && dropIndicator !== null;
+                        const isResizingThis = interactionEventId === event.id && resizeIndicator !== null;
 
-                      const resizeGhostStart = isResizingThis ? resizeIndicator!.startCol + 1 : gridColumnStart;
-                      const resizeGhostEnd = isResizingThis ? resizeIndicator!.endCol + 1 : gridColumnEnd;
+                        const resizeGhostStart = isResizingThis ? resizeIndicator!.startCol + 1 : gridColumnStart;
+                        const resizeGhostEnd = isResizingThis ? resizeIndicator!.endCol + 1 : gridColumnEnd;
 
-                      return (
-                        <React.Fragment key={event.id}>
-                          {/* Live Resize Indicator overlay */}
-                          {isResizingThis && (
-                            <div
-                              style={{
-                                gridColumnStart: resizeGhostStart,
-                                gridColumnEnd: resizeGhostEnd,
-                                gridRowStart: lane,
-                              }}
-                              className="bg-primary/10 border-2 border-dashed border-primary/40 rounded-xl h-[85px] z-10 mx-1 transition-all duration-75"
-                            />
-                          )}
+                        const cardStyle: React.CSSProperties = {
+                          gridColumnStart: isResizingThis ? resizeGhostStart : gridColumnStart,
+                          gridColumnEnd: isResizingThis ? resizeGhostEnd : gridColumnEnd,
+                          gridRowStart: lane,
+                          zIndex: isDraggingThis || isResizingThis ? 50 : 10
+                        };
+                        if (!isDraggingThis) {
+                          cardStyle.transform = 'translate3d(0, 0, 0)';
+                        }
 
-                          <div
-                            ref={isDraggingThis ? draggedElementRef : null} // ✅ Safely attaches to wrapper without state updates
-                            style={{
-                              gridColumnStart: isResizingThis ? resizeGhostStart : gridColumnStart,
-                              gridColumnEnd: isResizingThis ? resizeGhostEnd : gridColumnEnd,
-                              gridRowStart: lane,
-                              // FIXED: Explicitly set transform to undefined when dragging so React doesn't overwrite it
-                              transform: isDraggingThis ? undefined : 'translate3d(0, 0, 0)',
-                              zIndex: isDraggingThis || isResizingThis ? 50 : 10
-                            }}
-                            className={cn(
-                              "pointer-events-auto px-1 relative",
-                              isDraggingThis && "opacity-80 !transition-none",
-                              isResizingThis && "!transition-none"
-                            )}
-                          >
-                            {renderEvent ? (
-                              renderEvent(
-                                event,
-                                (e) => startCardDrag(e, event.id),
-                                (e, direction) => startCardResize(e, event.id, direction)
-                              )
-                            ) : (
-                              <EventCard
-                                event={event}
-                                resource={resource}
-                                isDragging={isDraggingThis}
-                                onDragStart={(e) => startCardDrag(e, event.id)}
-                                onResizeStart={(e, direction) => startCardResize(e, event.id, direction)}
+                        return (
+                          <React.Fragment key={event.id}>
+                            {/* FIXED: Elevated Z-Index and Solid Border for Resize Placeholder */}
+                            {isResizingThis && (
+                              <div
+                                style={{ gridColumnStart: resizeGhostStart, gridColumnEnd: resizeGhostEnd, gridRowStart: lane }}
+                                className="bg-primary/20 border-2 border-dashed border-primary rounded-xl h-[85px] z-30 mx-1 pointer-events-none"
                               />
                             )}
-                          </div>
-                        </React.Fragment>
-                      );
-                    })}
+
+                            <div
+                              ref={isDraggingThis ? draggedElementRef : null}
+                              style={cardStyle}
+                              className={cn(
+                                "pointer-events-auto px-1 relative",
+                                isDraggingThis && "opacity-80 !transition-none",
+                                isResizingThis && "!transition-none"
+                              )}
+                            >
+                              {renderEvent ? (
+                                renderEvent(event, startCardDrag, startCardResize)
+                              ) : (
+                                <EventCard
+                                  event={event}
+                                  resource={resource}
+                                  isDragging={isDraggingThis}
+                                  onDragStart={startCardDrag}
+                                  onResizeStart={startCardResize}
+                                />
+                              )}
+                            </div>
+                          </React.Fragment>
+                        );
+                      })}
+                    </div>
                   </div>
+
+                  {rowDropIndicator === virtualRow.index && !isDraggingRow && rowDrag && (
+                    <div
+                      className="absolute left-0 right-0 h-0.5 bg-primary z-40 pointer-events-none"
+                      style={{ top: rowDropIndicator > rowDrag.currentIndex ? '100%' : '0px' }}
+                    />
+                  )}
                 </div>
               );
             })}
