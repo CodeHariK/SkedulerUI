@@ -40,8 +40,6 @@ const slotToDate = (slot: number, currentDate: Date, dayStartHour: number, slots
   return date;
 };
 
-
-
 export interface ResourceSchedulerProps {
   resources: Resource[];
   events: EventItem[];
@@ -75,7 +73,12 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null);
   const [virtualVersion, setVirtualVersion] = useState(0);
+
   const lastInteractionRef = useRef<{ slot: number; resourceId?: string } | null>(null);
+
+  // FIXED: A State Machine ref to strictly lock the current pointer interaction type.
+  const activeModeRef = useRef<'NONE' | 'PANNING' | 'DRAGGING_CARD' | 'RESIZING_CARD' | 'DRAGGING_ROW' | 'SELECTING_SLOT'>('NONE');
+  const pointerStartPosRef = useRef({ x: 0, y: 0 });
 
   const [localResources, setLocalResources] = useState<Resource[]>(resources);
   const [localEvents, setLocalEvents] = useState<EventItem[]>(events);
@@ -103,27 +106,10 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
   } | null>(null);
 
   const [dragPosition, setDragPosition] = useState<{ x: number, y: number } | null>(null);
+  const [dropIndicator, setDropIndicator] = useState<{ resourceId: string; startCol: number; endCol: number; } | null>(null);
 
-  const [dropIndicator, setDropIndicator] = useState<{
-    resourceId: string;
-    startCol: number;
-    endCol: number;
-  } | null>(null);
-
-  const [rowDrag, setRowDrag] = useState<{
-    resourceId: string;
-    startY: number;
-    currentIndex: number;
-  } | null>(null);
-
-  const [selection, setSelection] = useState<{
-    resourceId: string;
-    startSlot: number;
-    currentSlot: number;
-  } | null>(null);
-
-  // NEW: State to track exact pixel start of a selection click
-  const [selectionStartPos, setSelectionStartPos] = useState<{ x: number; y: number } | null>(null);
+  const [rowDrag, setRowDrag] = useState<{ resourceId: string; startY: number; currentIndex: number; } | null>(null);
+  const [selection, setSelection] = useState<{ resourceId: string; startSlot: number; currentSlot: number; } | null>(null);
 
   const [showJobCreationModal, setShowJobCreationModal] = useState(false);
   const [newEventData, setNewEventData] = useState<any>(null);
@@ -144,20 +130,15 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
     const eventLanes: Record<string, number> = {};
     const eventsByResource: Record<string, EventItem[]> = {};
 
-    // Initialize arrays for fast grouping
     localResources.forEach(r => {
       eventsByResource[r.id] = [];
-      rowHeights[r.id] = 140; // Default height
+      rowHeights[r.id] = 140;
     });
 
-    // Group events by resource O(N)
     localEvents.forEach(e => {
-      if (eventsByResource[e.resourceId]) {
-        eventsByResource[e.resourceId].push(e);
-      }
+      if (eventsByResource[e.resourceId]) eventsByResource[e.resourceId].push(e);
     });
 
-    // Calculate lanes and heights per resource
     localResources.forEach(resource => {
       const resourceEvents = eventsByResource[resource.id].sort((a, b) => {
         const diff = a.startTime.getTime() - b.startTime.getTime();
@@ -173,7 +154,7 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
         for (let i = 0; i < lanes.length; i++) {
           if (lanes[i] <= event.startTime.getTime()) {
             lanes[i] = event.endTime.getTime();
-            eventLanes[event.id] = i + 1; // Save the exact lane assignment!
+            eventLanes[event.id] = i + 1;
             placed = true;
             break;
           }
@@ -202,12 +183,9 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
     estimateSize,
     overscan: 5,
     initialRect: { width: 1200, height: 800 },
-    onChange: () => {
-      setVirtualVersion(v => v + 1);
-    }
+    onChange: () => { setVirtualVersion(v => v + 1); }
   });
 
-  // Force the virtualizer to immediately recalculate heights when row heights change
   useEffect(() => {
     rowVirtualizer.measure();
   }, [layoutEngine.rowHeights, rowVirtualizer]);
@@ -219,26 +197,38 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
   }, []);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (interaction || rowDrag || selection || !gridRef.current) return;
+    if (activeModeRef.current !== 'NONE' || !gridRef.current) return;
+    activeModeRef.current = 'PANNING';
     setIsPanning(true);
     setStartX(e.pageX - gridRef.current.offsetLeft);
     setScrollLeft(gridRef.current.scrollLeft);
-  }, [interaction, rowDrag, selection]);
+  }, []);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!isPanning || interaction || rowDrag || selection || !gridRef.current) return;
+    if (!isPanning || activeModeRef.current !== 'PANNING' || !gridRef.current) return;
     e.preventDefault();
     const walk = ((e.pageX - gridRef.current.offsetLeft) - startX) * 1.5;
     gridRef.current.scrollLeft = scrollLeft - walk;
-  }, [isPanning, interaction, rowDrag, selection, startX, scrollLeft]);
+  }, [isPanning, startX, scrollLeft]);
 
-  const handleMouseUpOrLeave = useCallback(() => setIsPanning(false), []);
+  const handleMouseUpOrLeave = useCallback(() => {
+    if (activeModeRef.current === 'PANNING') {
+      setIsPanning(false);
+      activeModeRef.current = 'NONE';
+    }
+  }, []);
 
   const startCardDrag = useCallback((e: React.PointerEvent, eventId: string) => {
     e.preventDefault();
     e.stopPropagation();
+    if (activeModeRef.current !== 'NONE') return;
+    activeModeRef.current = 'DRAGGING_CARD';
+
     const event = localEvents.find(evt => evt.id === eventId);
-    if (!event) return;
+    if (!event) {
+      activeModeRef.current = 'NONE';
+      return;
+    }
 
     const { gridColumnStart, gridColumnEnd } = getEventGridSpan(event.startTime, event.endTime, dayStartHour, totalHours, slotsPerHour);
     lastInteractionRef.current = { slot: gridColumnStart - 1, resourceId: event.resourceId };
@@ -252,18 +242,20 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
     });
 
     setDragPosition({ x: 0, y: 0 });
-    setDropIndicator({
-      resourceId: event.resourceId,
-      startCol: gridColumnStart - 1,
-      endCol: gridColumnEnd - 1
-    });
+    setDropIndicator({ resourceId: event.resourceId, startCol: gridColumnStart - 1, endCol: gridColumnEnd - 1 });
   }, [localEvents, dayStartHour, totalHours, slotsPerHour]);
 
   const startCardResize = useCallback((e: React.PointerEvent, eventId: string, direction: 'left' | 'right') => {
     e.preventDefault();
     e.stopPropagation();
+    if (activeModeRef.current !== 'NONE') return;
+    activeModeRef.current = 'RESIZING_CARD';
+
     const event = localEvents.find(evt => evt.id === eventId);
-    if (!event) return;
+    if (!event) {
+      activeModeRef.current = 'NONE';
+      return;
+    }
 
     const { gridColumnStart, gridColumnEnd } = getEventGridSpan(event.startTime, event.endTime, dayStartHour, totalHours, slotsPerHour);
     lastInteractionRef.current = { slot: direction === 'left' ? gridColumnStart - 1 : gridColumnEnd - 1 };
@@ -279,21 +271,26 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
   }, [localEvents, dayStartHour, totalHours, slotsPerHour]);
 
   const handleRowPointerDown = useCallback((e: React.PointerEvent, resourceId: string) => {
-    if (e.target !== e.currentTarget || !gridRef.current) return;
+    if (e.target !== e.currentTarget || !gridRef.current || activeModeRef.current !== 'NONE') return;
     e.preventDefault();
     e.stopPropagation();
+
+    activeModeRef.current = 'SELECTING_SLOT';
+    pointerStartPosRef.current = { x: e.clientX, y: e.clientY };
 
     const gridRect = gridRef.current.getBoundingClientRect();
     const slotIdx = Math.max(0, Math.floor((e.clientX - gridRect.left + gridRef.current.scrollLeft) / slotWidth));
 
     setSelection({ resourceId, startSlot: slotIdx, currentSlot: slotIdx });
-    setSelectionStartPos({ x: e.clientX, y: e.clientY }); // Track physical mouse down coordinates
     lastInteractionRef.current = { slot: slotIdx };
   }, [slotWidth]);
 
   const startRowDrag = useCallback((e: React.PointerEvent, resourceId: string) => {
     e.preventDefault();
     e.stopPropagation();
+    if (activeModeRef.current !== 'NONE') return;
+    activeModeRef.current = 'DRAGGING_ROW';
+
     const idx = localResources.findIndex(r => r.id === resourceId);
     if (idx !== -1) setRowDrag({ resourceId, startY: e.clientY, currentIndex: idx });
   }, [localResources]);
@@ -302,70 +299,63 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
     const gridEl = gridRef.current;
     if (!gridEl) return;
 
-    if (interaction) {
-      const gridRect = gridEl.getBoundingClientRect();
+    if (activeModeRef.current === 'RESIZING_CARD' && interaction) {
+      const currentSlot = Math.max(0, Math.floor((e.clientX - gridEl.getBoundingClientRect().left + gridEl.scrollLeft) / slotWidth));
+      if (lastInteractionRef.current?.slot === currentSlot) return;
+      lastInteractionRef.current = { slot: currentSlot };
 
-      if (interaction.type === 'resize') {
-        const currentSlot = Math.max(0, Math.floor((e.clientX - gridRect.left + gridEl.scrollLeft) / slotWidth));
-        if (lastInteractionRef.current?.slot === currentSlot) return;
-        lastInteractionRef.current = { slot: currentSlot };
-
-        if (interaction.resizeDirection === 'left') {
-          const newStartSlot = Math.max(0, Math.min(interaction.startColEnd - 1, currentSlot));
-          setLocalEvents(prev => prev.map(evt => evt.id === interaction.eventId ? { ...evt, startTime: slotToDate(newStartSlot, currentDate, dayStartHour, slotsPerHour) } : evt));
-        } else {
-          const newEndSlot = Math.max(interaction.startColStart + 1, Math.min(totalSlots, currentSlot));
-          setLocalEvents(prev => prev.map(evt => evt.id === interaction.eventId ? { ...evt, endTime: slotToDate(newEndSlot, currentDate, dayStartHour, slotsPerHour) } : evt));
-        }
-      } else if (interaction.type === 'move') {
-
-        const scrollContainerEl = scrollContainerRef.current;
-        const scrollDeltaX = (scrollContainerEl?.scrollLeft || 0) - interaction.startScrollLeft;
-        const scrollDeltaY = (scrollContainerEl?.scrollTop || 0) - interaction.startScrollTop;
-
-        setDragPosition({
-          x: (e.clientX - interaction.startX) + scrollDeltaX,
-          y: (e.clientY - interaction.startY) + scrollDeltaY
-        });
-
-        let targetResource: Resource;
-
-        if (canChangeRows && scrollContainerEl) {
-          const scrollContainerRect = scrollContainerEl.getBoundingClientRect();
-          const gridY = (e.clientY - scrollContainerRect.top + scrollContainerEl.scrollTop) - 56;
-
-          const virtualItems = rowVirtualizer.getVirtualItems();
-          let targetRowIdx = localResources.length - 1;
-          const found = virtualItems.find(item => {
-            const start = item.start;
-            const end = start + item.size;
-            return gridY >= start && gridY <= end;
-          });
-          if (found) {
-            targetRowIdx = found.index;
-          }
-
-          targetRowIdx = Math.max(0, Math.min(localResources.length - 1, targetRowIdx));
-          targetResource = localResources[targetRowIdx];
-        } else {
-          targetResource = localResources.find(r => r.id === interaction.startResourceId) || localResources[0];
-        }
-
-        const logicalDeltaX = (e.clientX - interaction.startX) + scrollDeltaX;
-        const deltaSlots = Math.round(logicalDeltaX / slotWidth);
-        const durationSlots = interaction.startColEnd - interaction.startColStart;
-        const newStartSlot = Math.max(0, Math.min(totalSlots - durationSlots, interaction.startColStart + deltaSlots));
-
-        if (lastInteractionRef.current?.slot === newStartSlot && lastInteractionRef.current?.resourceId === targetResource.id) return;
-        lastInteractionRef.current = { slot: newStartSlot, resourceId: targetResource.id };
-
-        setDropIndicator({
-          resourceId: targetResource.id,
-          startCol: newStartSlot,
-          endCol: newStartSlot + durationSlots
-        });
+      if (interaction.resizeDirection === 'left') {
+        const newStartSlot = Math.max(0, Math.min(interaction.startColEnd - 1, currentSlot));
+        setLocalEvents(prev => prev.map(evt => evt.id === interaction.eventId ? { ...evt, startTime: slotToDate(newStartSlot, currentDate, dayStartHour, slotsPerHour) } : evt));
+      } else {
+        const newEndSlot = Math.max(interaction.startColStart + 1, Math.min(totalSlots, currentSlot));
+        setLocalEvents(prev => prev.map(evt => evt.id === interaction.eventId ? { ...evt, endTime: slotToDate(newEndSlot, currentDate, dayStartHour, slotsPerHour) } : evt));
       }
-    } else if (rowDrag) {
+    } else if (activeModeRef.current === 'DRAGGING_CARD' && interaction) {
+      const scrollContainerEl = scrollContainerRef.current;
+      const scrollDeltaX = (scrollContainerEl?.scrollLeft || 0) - interaction.startScrollLeft;
+      const scrollDeltaY = (scrollContainerEl?.scrollTop || 0) - interaction.startScrollTop;
+
+      setDragPosition({
+        x: (e.clientX - interaction.startX) + scrollDeltaX,
+        y: (e.clientY - interaction.startY) + scrollDeltaY
+      });
+
+      let targetResource: Resource;
+
+      if (canChangeRows && scrollContainerEl) {
+        const scrollContainerRect = scrollContainerEl.getBoundingClientRect();
+        const gridY = (e.clientY - scrollContainerRect.top + scrollContainerEl.scrollTop) - 56;
+
+        const virtualItems = rowVirtualizer.getVirtualItems();
+        let targetRowIdx = localResources.length - 1;
+        const found = virtualItems.find(item => {
+          const start = item.start;
+          const end = start + item.size;
+          return gridY >= start && gridY <= end;
+        });
+        if (found) targetRowIdx = found.index;
+
+        targetRowIdx = Math.max(0, Math.min(localResources.length - 1, targetRowIdx));
+        targetResource = localResources[targetRowIdx];
+      } else {
+        targetResource = localResources.find(r => r.id === interaction.startResourceId) || localResources[0];
+      }
+
+      const logicalDeltaX = (e.clientX - interaction.startX) + scrollDeltaX;
+      const deltaSlots = Math.round(logicalDeltaX / slotWidth);
+      const durationSlots = interaction.startColEnd - interaction.startColStart;
+      const newStartSlot = Math.max(0, Math.min(totalSlots - durationSlots, interaction.startColStart + deltaSlots));
+
+      if (lastInteractionRef.current?.slot === newStartSlot && lastInteractionRef.current?.resourceId === targetResource.id) return;
+      lastInteractionRef.current = { slot: newStartSlot, resourceId: targetResource.id };
+
+      setDropIndicator({
+        resourceId: targetResource.id,
+        startCol: newStartSlot,
+        endCol: newStartSlot + durationSlots
+      });
+    } else if (activeModeRef.current === 'DRAGGING_ROW' && rowDrag) {
       const scrollContainerEl = scrollContainerRef.current;
       if (!scrollContainerEl) return;
       const scrollContainerRect = scrollContainerEl.getBoundingClientRect();
@@ -378,9 +368,7 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
         const end = start + item.size;
         return gridY >= start && gridY <= end;
       });
-      if (found) {
-        newIndex = found.index;
-      }
+      if (found) newIndex = found.index;
 
       newIndex = Math.max(0, Math.min(localResources.length - 1, newIndex));
       if (newIndex !== rowDrag.currentIndex) {
@@ -390,7 +378,7 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
         setLocalResources(reordered);
         setRowDrag({ resourceId: rowDrag.resourceId, startY: e.clientY, currentIndex: newIndex });
       }
-    } else if (selection) {
+    } else if (activeModeRef.current === 'SELECTING_SLOT' && selection) {
       const slotIdx = Math.max(0, Math.min(totalSlots, Math.floor((e.clientX - gridEl.getBoundingClientRect().left + gridEl.scrollLeft) / slotWidth)));
       if (lastInteractionRef.current?.slot === slotIdx) return;
       lastInteractionRef.current = { slot: slotIdx };
@@ -399,61 +387,58 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
   }, [interaction, rowDrag, selection, localResources, slotWidth, totalSlots, currentDate, dayStartHour, slotsPerHour, rowVirtualizer, canChangeRows, layoutEngine]);
 
   const handlePointerUp = useCallback((e: React.PointerEvent) => {
-    if (interaction) {
-      if (interaction.type === 'move' && dropIndicator) {
-        const finalEvent = localEvents.find(evt => evt.id === interaction.eventId);
-        if (finalEvent) {
-          const updatedEvent = {
-            ...finalEvent,
-            resourceId: dropIndicator.resourceId,
-            startTime: slotToDate(dropIndicator.startCol, currentDate, dayStartHour, slotsPerHour),
-            endTime: slotToDate(dropIndicator.endCol, currentDate, dayStartHour, slotsPerHour)
-          };
-          setLocalEvents(prev => prev.map(evt => evt.id === interaction.eventId ? updatedEvent : evt));
-          if (onEventChange) onEventChange(updatedEvent);
+    if (activeModeRef.current === 'DRAGGING_CARD' || activeModeRef.current === 'RESIZING_CARD') {
+      if (interaction) {
+        if (activeModeRef.current === 'DRAGGING_CARD' && dropIndicator) {
+          const finalEvent = localEvents.find(evt => evt.id === interaction.eventId);
+          if (finalEvent) {
+            const updatedEvent = {
+              ...finalEvent,
+              resourceId: dropIndicator.resourceId,
+              startTime: slotToDate(dropIndicator.startCol, currentDate, dayStartHour, slotsPerHour),
+              endTime: slotToDate(dropIndicator.endCol, currentDate, dayStartHour, slotsPerHour)
+            };
+            setLocalEvents(prev => prev.map(evt => evt.id === interaction.eventId ? updatedEvent : evt));
+            if (onEventChange) onEventChange(updatedEvent);
+          }
+        } else if (activeModeRef.current === 'RESIZING_CARD') {
+          const finalEvent = localEvents.find(evt => evt.id === interaction.eventId);
+          if (finalEvent && onEventChange) onEventChange(finalEvent);
         }
-      } else if (interaction.type === 'resize') {
-        const finalEvent = localEvents.find(evt => evt.id === interaction.eventId);
-        if (finalEvent && onEventChange) onEventChange(finalEvent);
       }
-
       setInteraction(null);
       setDragPosition(null);
       setDropIndicator(null);
-    } else if (rowDrag) {
+    } else if (activeModeRef.current === 'DRAGGING_ROW') {
       if (onResourcesReorder) onResourcesReorder(localResources);
       setRowDrag(null);
-    } else if (selection) {
+    } else if (activeModeRef.current === 'SELECTING_SLOT' && selection) {
+      // Enforce that dragging the timeline actually occurred (more than 5px) before opening a modal.
+      const dx = Math.abs(e.clientX - pointerStartPosRef.current.x);
+      const dy = Math.abs(e.clientY - pointerStartPosRef.current.y);
 
-      // FIXED: Strictly ensure the user dragged their mouse by at least 5 pixels
-      // If it's less than 5 pixels, discard the event as a pure click!
-      if (selectionStartPos) {
-        const dx = Math.abs(e.clientX - selectionStartPos.x);
-        const dy = Math.abs(e.clientY - selectionStartPos.y);
+      if (dx > 5 || dy > 5) {
+        const start = Math.min(selection.startSlot, selection.currentSlot);
+        const end = Math.max(selection.startSlot, selection.currentSlot);
 
-        if (dx < 5 && dy < 5) {
-          setSelection(null);
-          setSelectionStartPos(null);
-          lastInteractionRef.current = null;
-          return;
-        }
+        // Prevent 0-duration jobs
+        const finalEnd = start === end ? start + 1 : end;
+
+        setNewEventData({
+          resourceId: selection.resourceId,
+          startTime: slotToDate(start, currentDate, dayStartHour, slotsPerHour),
+          endTime: slotToDate(finalEnd, currentDate, dayStartHour, slotsPerHour),
+          title: 'New Job', location: '', price: 150, status: 'New'
+        });
+        setShowJobCreationModal(true);
       }
-
-      const start = Math.min(selection.startSlot, selection.currentSlot);
-      const end = Math.max(selection.startSlot, selection.currentSlot);
-
-      setNewEventData({
-        resourceId: selection.resourceId,
-        startTime: slotToDate(start, currentDate, dayStartHour, slotsPerHour),
-        endTime: slotToDate(end, currentDate, dayStartHour, slotsPerHour),
-        title: 'New Job', location: '', price: 150, status: 'New'
-      });
-      setShowJobCreationModal(true);
       setSelection(null);
-      setSelectionStartPos(null);
     }
+
+    // Always release lock and cleanup
+    activeModeRef.current = 'NONE';
     lastInteractionRef.current = null;
-  }, [interaction, dropIndicator, localEvents, localResources, currentDate, dayStartHour, slotsPerHour, onEventChange, onResourcesReorder, rowDrag, selection, selectionStartPos]);
+  }, [interaction, dropIndicator, localEvents, localResources, currentDate, dayStartHour, slotsPerHour, onEventChange, onResourcesReorder, selection]);
 
   const handleCreateJobHeader = useCallback(() => {
     setNewEventData({
@@ -514,7 +499,8 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
         }}
         className="flex-1 min-h-0 flex relative overflow-y-auto overflow-x-hidden select-none"
         onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp} // Triggers mouse-up with event
+        onPointerUp={handlePointerUp}
+        onPointerLeave={handlePointerUp} // Safety fallback if cursor leaves screen while dragging
       >
         <ResourceSidebar
           resources={localResources}
