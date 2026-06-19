@@ -307,7 +307,8 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
         setRowDrag({ resourceId: rowDrag.resourceId, startY: e.clientY, currentIndex: newIndex });
       }
     } else if (selection) {
-      const slotIdx = Math.max(0, Math.min(totalSlots, Math.floor((e.clientX - gridRef.current.getBoundingClientRect().left + gridEl.scrollLeft) / slotWidth)));
+      // FIXED: Swapped gridRef.current for gridEl
+      const slotIdx = Math.max(0, Math.min(totalSlots, Math.floor((e.clientX - gridEl.getBoundingClientRect().left + gridEl.scrollLeft) / slotWidth)));
       if (lastInteractionRef.current?.slot === slotIdx) return;
       lastInteractionRef.current = { slot: slotIdx };
       setSelection(prev => prev ? { ...prev, currentSlot: slotIdx } : null);
