@@ -3,6 +3,33 @@ import type { Resource, EventItem } from './types';
 import { EventCard } from './EventCard';
 import { cn } from '@/lib/utils';
 
+// FIXED: Computes consistent lanes for explicitly assigning to CSS grid so it bypasses unpredictable auto-placement layout jumps.
+const assignEventLanes = (events: EventItem[]) => {
+  const sorted = [...events].sort((a, b) => {
+    const diff = a.startTime.getTime() - b.startTime.getTime();
+    return diff !== 0 ? diff : a.id.localeCompare(b.id);
+  });
+  const lanes: number[] = [];
+  const eventLanes: Record<string, number> = {};
+
+  sorted.forEach(event => {
+    let placed = false;
+    for (let i = 0; i < lanes.length; i++) {
+      if (lanes[i] <= event.startTime.getTime()) {
+        lanes[i] = event.endTime.getTime();
+        eventLanes[event.id] = i + 1; // 1-based index for CSS Grid Row
+        placed = true;
+        break;
+      }
+    }
+    if (!placed) {
+      lanes.push(event.endTime.getTime());
+      eventLanes[event.id] = lanes.length;
+    }
+  });
+  return eventLanes;
+};
+
 interface TimelineGridProps {
   gridRef: React.RefObject<HTMLDivElement | null>;
   isPanning: boolean;
@@ -93,7 +120,6 @@ export const TimelineGrid: React.FC<TimelineGridProps> = memo(({
 
         {/* Grid Body */}
         <div className="flex flex-col relative">
-          {/* Vertical grid lines (background) */}
           <div className="absolute inset-0 pointer-events-none flex">
             {hours.map((hour, idx) => (
               <div
@@ -104,9 +130,10 @@ export const TimelineGrid: React.FC<TimelineGridProps> = memo(({
             ))}
           </div>
 
-          {/* Resource rows with events */}
           {resources.map((resource) => {
             const resourceEvents = events.filter((e) => e.resourceId === resource.id);
+            const eventLanes = assignEventLanes(resourceEvents); // Calculate lanes for this row
+
             const isDraggingRow = rowDragResourceId === resource.id;
             const isSelectedRow = selection && selection.resourceId === resource.id;
 
@@ -133,7 +160,8 @@ export const TimelineGrid: React.FC<TimelineGridProps> = memo(({
                     <div
                       style={{
                         gridColumnStart: startCol + 1,
-                        gridColumnEnd: (startCol === endCol ? startCol + 4 : endCol) + 1
+                        gridColumnEnd: (startCol === endCol ? startCol + 4 : endCol) + 1,
+                        gridRowStart: 1 // Keep overlay anchored safely to top
                       }}
                       className="bg-primary/15 border-2 border-dashed border-primary/30 rounded-lg h-[85px] z-0"
                     />
@@ -147,12 +175,14 @@ export const TimelineGrid: React.FC<TimelineGridProps> = memo(({
                       totalHours,
                       slotsPerHour
                     );
+
+                    const lane = eventLanes[event.id] || 1; // Retrieve explicitly assigned lane
                     const isDraggingThis = interactionEventId === event.id;
 
                     return (
                       <div
                         key={event.id}
-                        style={{ gridColumnStart, gridColumnEnd }}
+                        style={{ gridColumnStart, gridColumnEnd, gridRowStart: lane }} // Force grid assignment
                         className="pointer-events-auto px-1 z-10"
                       >
                         {renderEvent ? (
