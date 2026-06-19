@@ -11,7 +11,8 @@ import {
   MessageSquare,
   HelpCircle,
   Bell,
-  ChevronDown
+  ChevronDown,
+  Activity
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -27,6 +28,7 @@ export const NavigationHeader: React.FC<NavigationHeaderProps> = ({
   const navItems = [
     { name: 'Dashboard', icon: LayoutDashboard },
     { name: 'Scheduler', icon: Calendar },
+    { name: 'Stress Test', icon: Activity },
     { name: 'Dispatcher', icon: Truck },
     { name: 'Accounts', icon: BookOpen },
     { name: 'Contacts', icon: Users },

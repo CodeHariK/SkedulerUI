@@ -14,7 +14,7 @@ interface ResourceSidebarProps {
   renderResource?: (resource: Resource, onGripMouseDown?: (e: React.PointerEvent) => void) => React.ReactNode;
 }
 
-export const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
+export const ResourceSidebar: React.FC<ResourceSidebarProps> = React.memo(({
   resources,
   virtualRows,
   totalSize,
@@ -105,4 +105,4 @@ export const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
       </div>
     </div>
   );
-};
+});

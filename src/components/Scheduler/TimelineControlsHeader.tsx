@@ -28,7 +28,7 @@ interface TimelineControlsHeaderProps {
   onThemeToggle: () => void;
 }
 
-export const TimelineControlsHeader: React.FC<TimelineControlsHeaderProps> = ({
+export const TimelineControlsHeader: React.FC<TimelineControlsHeaderProps> = React.memo(({
   currentDate,
   onDateChange,
   zoomMinutes,
@@ -264,5 +264,4 @@ export const TimelineControlsHeader: React.FC<TimelineControlsHeaderProps> = ({
       </div>
     </div>
   );
-};
-
+});
