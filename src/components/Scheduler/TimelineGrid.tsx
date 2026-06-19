@@ -159,6 +159,7 @@ export const TimelineGrid: React.FC<TimelineGridProps> = ({
                         ) : (
                           <EventCard
                             event={event}
+                            resource={resource}
                             isDragging={isDraggingThis}
                             onDragStart={(e) => startCardDrag(e, event.id)}
                             onResizeStart={(e) => startCardResize(e, event.id)}

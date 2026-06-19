@@ -35,7 +35,7 @@ export const NavigationHeader: React.FC<NavigationHeaderProps> = ({
   ];
 
   return (
-    <header className="w-full bg-white border-b border-border h-[53px] flex items-center justify-between px-5 sticky top-0 z-50">
+    <header className="w-full bg-white dark:bg-[#141414] border-b border-border h-[53px] flex items-center justify-between px-5 sticky top-0 z-50">
       {/* Left Section: Logo & Navigation */}
       <div className="flex items-center gap-10 h-full">
         {/* Skeduler Brand Logo */}

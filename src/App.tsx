@@ -7,7 +7,7 @@ function App() {
   const [activeTab, setActiveTab] = useState('Scheduler');
 
   return (
-    <div className="min-h-screen bg-[#fafafa] flex flex-col font-sans">
+    <div className="min-h-screen bg-background text-foreground flex flex-col font-sans">
       {/* Navigation Header */}
       <NavigationHeader activeTab={activeTab} onTabChange={setActiveTab} />
       
