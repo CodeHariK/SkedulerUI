@@ -48,7 +48,7 @@ export const mockEvents: EventItem[] = [
     startTime: new Date('2026-06-18T08:30:00'),
     endTime: new Date('2026-06-18T11:00:00'),
     status: 'Ongoing',
-    metadata: { location: 'Faulkner Street', price: 150 }
+    metadata: { location: 'Faulkner Street', price: 150, dispatched: true }
   },
   {
     id: 'job-2',
@@ -57,7 +57,7 @@ export const mockEvents: EventItem[] = [
     startTime: new Date('2026-06-18T12:00:00'),
     endTime: new Date('2026-06-18T14:30:00'),
     status: 'New',
-    metadata: { location: 'Faulkner Street', price: 150 }
+    metadata: { location: 'Faulkner Street', price: 150, dispatched: true }
   },
   // Sarah Chen's jobs
   {

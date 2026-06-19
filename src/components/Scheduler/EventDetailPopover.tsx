@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { PopoverContent } from '@/components/ui/popover';
 import { MapPin, Eye, EyeOff } from 'lucide-react';
+import { STATUS_COLORS, getIsDispatched, formatJobNumber } from './constants';
 
 interface EventDetailPopoverProps {
   event: EventItem;
@@ -23,15 +24,8 @@ export const EventDetailPopover: React.FC<EventDetailPopoverProps> = ({
     return `${start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} — ${end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
   };
 
-  const statusColors = {
-    Ongoing: 'bg-[#FEF6F5] text-[#CF4523] border-[#FCDFD4] dark:bg-[#791D09]/20 dark:text-[#F98A66]',
-    New: 'bg-[#FEF6F5] text-[#CF4523] border-[#FCDFD4] dark:bg-[#791D09]/20 dark:text-[#F98A66]',
-    Completed: 'bg-[#EEFDF4] text-[#15803D] border-[#DCFCE7] dark:bg-[#14532D]/20 dark:text-[#4ADE80]',
-    Cancelled: 'bg-[#FEF2F2] text-[#B91C1C] border-[#FEE2E2] dark:bg-[#7F1D1D]/20 dark:text-[#F87171]',
-  };
-
   // Determine dispatch status to match Figma design
-  const isDispatched = ['job-1', 'job-2', 'job-20', 'job-22'].some(id => event.id.includes(id));
+  const isDispatched = getIsDispatched(event);
 
   // Determine technician avatar colors based on role
   const isElectrical = resource?.metadata?.role === 'ELECTRICAL';
@@ -46,14 +40,14 @@ export const EventDetailPopover: React.FC<EventDetailPopoverProps> = ({
         <div className="min-w-0">
           <h3 className="font-bold text-text-primary text-base leading-snug">{event.title}</h3>
           <p className="text-[11px] text-text-tertiary mt-1 font-medium">
-            JOB #{event.id.replace('job-created-', '').slice(-4).toUpperCase()} • Compliance
+            JOB #{formatJobNumber(event.id)} • Compliance
           </p>
         </div>
         <Badge
           variant="outline"
           className={cn(
             "text-xs font-semibold px-3 py-0.5 rounded-full border-none whitespace-nowrap",
-            statusColors[event.status] || "bg-muted text-muted-foreground"
+            STATUS_COLORS[event.status] || "bg-muted text-muted-foreground"
           )}
         >
           {event.status}

@@ -2,27 +2,26 @@ import React from 'react';
 import type { Resource } from './types';
 import { cn } from '@/lib/utils';
 import { Calendar, GripVertical } from 'lucide-react';
-import { Virtualizer } from '@tanstack/react-virtual';
+
+import type { VirtualItem } from '@tanstack/react-virtual';
 
 interface ResourceSidebarProps {
   resources: Resource[];
-  virtualizer: Virtualizer<HTMLDivElement, Element>;
+  virtualRows: VirtualItem[];
+  totalSize: number;
   rowDragResourceId: string | undefined;
   startRowDrag: (e: React.PointerEvent, resourceId: string) => void;
   renderResource?: (resource: Resource, onGripMouseDown?: (e: React.PointerEvent) => void) => React.ReactNode;
-  virtualVersion?: number;
 }
 
 export const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
   resources,
-  virtualizer,
+  virtualRows,
+  totalSize,
   rowDragResourceId,
   startRowDrag,
   renderResource,
-  virtualVersion,
 }) => {
-  // Read virtualVersion to satisfy compiler and trigger re-renders
-  void virtualVersion;
   const defaultRenderResource = (resource: Resource, index: number, onGripMouseDown?: (e: React.PointerEvent) => void) => {
     const role = resource.metadata?.role || '';
     const jobsCount = resource.metadata?.jobsCount || 0;
@@ -81,8 +80,8 @@ export const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
       </div>
 
       {/* Resource list items */}
-      <div style={{ height: `${virtualizer.getTotalSize()}px`, width: '100%', position: 'relative' }}>
-        {virtualizer.getVirtualItems().map((virtualRow) => {
+      <div style={{ height: `${totalSize}px`, width: '100%', position: 'relative' }}>
+        {virtualRows.map((virtualRow) => {
           const resource = resources[virtualRow.index];
           if (!resource) return null;
           return (

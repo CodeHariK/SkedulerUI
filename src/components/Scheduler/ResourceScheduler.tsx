@@ -1,10 +1,41 @@
 import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
-import type { Resource, EventItem } from './types';
+import type { Resource, EventItem, NewEventData } from './types';
 import { TimelineControlsHeader } from './TimelineControlsHeader';
 import { ResourceSidebar } from './ResourceSidebar';
 import { TimelineGrid } from './TimelineGrid';
 import { JobCreationDialog } from './JobCreationDialog';
 import { useVirtualizer } from '@tanstack/react-virtual';
+import { LAYOUT_CONSTANTS } from './constants';
+
+const areResourcesDifferent = (a: Resource[], b: Resource[]) => {
+  if (a.length !== b.length) return true;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i].id !== b[i].id || a[i].name !== b[i].name || a[i].avatar !== b[i].avatar) return true;
+    if (JSON.stringify(a[i].metadata) !== JSON.stringify(b[i].metadata)) return true;
+  }
+  return false;
+};
+
+const areEventsDifferent = (a: EventItem[], b: EventItem[]) => {
+  if (a.length !== b.length) return true;
+  for (let i = 0; i < a.length; i++) {
+    const ea = a[i];
+    const eb = b[i];
+    if (
+      ea.id !== eb.id ||
+      ea.resourceId !== eb.resourceId ||
+      ea.title !== eb.title ||
+      ea.status !== eb.status ||
+      ea.startTime.getTime() !== eb.startTime.getTime() ||
+      ea.endTime.getTime() !== eb.endTime.getTime()
+    ) {
+      return true;
+    }
+    if (JSON.stringify(ea.metadata) !== JSON.stringify(eb.metadata)) return true;
+  }
+  return false;
+};
+
 
 const getHourWidth = (zoom: number) => {
   switch (zoom) {
@@ -72,7 +103,6 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
   const gridRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null);
-  const [virtualVersion, setVirtualVersion] = useState(0);
 
   const lastInteractionRef = useRef<{ slot: number; resourceId?: string } | null>(null);
 
@@ -82,6 +112,9 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
 
   const [localResources, setLocalResources] = useState<Resource[]>(resources);
   const [localEvents, setLocalEvents] = useState<EventItem[]>(events);
+
+  const lastResourcesPropRef = useRef<Resource[]>(resources);
+  const lastEventsPropRef = useRef<EventItem[]>(events);
 
   const [currentDate, setCurrentDate] = useState<Date>(new Date('2026-06-18'));
   const [zoomMinutes, setZoomMinutes] = useState<number>(60);
@@ -112,10 +145,24 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
   const [selection, setSelection] = useState<{ resourceId: string; startSlot: number; currentSlot: number; } | null>(null);
 
   const [showJobCreationModal, setShowJobCreationModal] = useState(false);
-  const [newEventData, setNewEventData] = useState<any>(null);
+  const [newEventData, setNewEventData] = useState<NewEventData | null>(null);
 
-  useEffect(() => { setLocalResources(resources); }, [resources]);
-  useEffect(() => { setLocalEvents(events); }, [events]);
+  const checkAndSyncProps = useCallback(() => {
+    if (activeModeRef.current === 'NONE') {
+      if (areResourcesDifferent(resources, lastResourcesPropRef.current)) {
+        setLocalResources(resources);
+        lastResourcesPropRef.current = resources;
+      }
+      if (areEventsDifferent(events, lastEventsPropRef.current)) {
+        setLocalEvents(events);
+        lastEventsPropRef.current = events;
+      }
+    }
+  }, [resources, events]);
+
+  useEffect(() => {
+    checkAndSyncProps();
+  }, [resources, events, checkAndSyncProps]);
 
   const slotsPerHour = 4;
   const totalHours = useMemo(() => dayEndHour - dayStartHour, [dayEndHour, dayStartHour]);
@@ -132,7 +179,7 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
 
     localResources.forEach(r => {
       eventsByResource[r.id] = [];
-      rowHeights[r.id] = 140;
+      rowHeights[r.id] = LAYOUT_CONSTANTS.ROW_MIN_HEIGHT;
     });
 
     localEvents.forEach(e => {
@@ -165,7 +212,10 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
         }
       });
 
-      rowHeights[resource.id] = Math.max(140, lanes.length * 95 + 30);
+      rowHeights[resource.id] = Math.max(
+        LAYOUT_CONSTANTS.ROW_MIN_HEIGHT,
+        lanes.length * LAYOUT_CONSTANTS.LANE_HEIGHT + LAYOUT_CONSTANTS.LANE_OFFSET
+      );
     });
 
     return { rowHeights, eventLanes, eventsByResource };
@@ -173,8 +223,8 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
 
   const estimateSize = useCallback((index: number) => {
     const resource = localResources[index];
-    if (!resource) return 140;
-    return layoutEngine.rowHeights[resource.id] || 140;
+    if (!resource) return LAYOUT_CONSTANTS.ROW_MIN_HEIGHT;
+    return layoutEngine.rowHeights[resource.id] || LAYOUT_CONSTANTS.ROW_MIN_HEIGHT;
   }, [localResources, layoutEngine.rowHeights]);
 
   const rowVirtualizer = useVirtualizer({
@@ -182,8 +232,7 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
     getScrollElement: () => scrollElement,
     estimateSize,
     overscan: 5,
-    initialRect: { width: 1200, height: 800 },
-    onChange: () => { setVirtualVersion(v => v + 1); }
+    initialRect: { width: 1200, height: 800 }
   });
 
   useEffect(() => {
@@ -325,7 +374,7 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
 
       if (canChangeRows && scrollContainerEl) {
         const scrollContainerRect = scrollContainerEl.getBoundingClientRect();
-        const gridY = (e.clientY - scrollContainerRect.top + scrollContainerEl.scrollTop) - 56;
+        const gridY = (e.clientY - scrollContainerRect.top + scrollContainerEl.scrollTop) - LAYOUT_CONSTANTS.HEADER_OFFSET;
 
         const virtualItems = rowVirtualizer.getVirtualItems();
         let targetRowIdx = localResources.length - 1;
@@ -359,7 +408,7 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
       const scrollContainerEl = scrollContainerRef.current;
       if (!scrollContainerEl) return;
       const scrollContainerRect = scrollContainerEl.getBoundingClientRect();
-      const gridY = (e.clientY - scrollContainerRect.top + scrollContainerEl.scrollTop) - 56;
+      const gridY = (e.clientY - scrollContainerRect.top + scrollContainerEl.scrollTop) - LAYOUT_CONSTANTS.HEADER_OFFSET;
 
       const virtualItems = rowVirtualizer.getVirtualItems();
       let newIndex = localResources.length - 1;
@@ -384,7 +433,7 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
       lastInteractionRef.current = { slot: slotIdx };
       setSelection(prev => prev ? { ...prev, currentSlot: slotIdx } : null);
     }
-  }, [interaction, rowDrag, selection, localResources, slotWidth, totalSlots, currentDate, dayStartHour, slotsPerHour, rowVirtualizer, canChangeRows, layoutEngine]);
+  }, [interaction, rowDrag, selection, localResources, slotWidth, totalSlots, currentDate, dayStartHour, slotsPerHour, rowVirtualizer, canChangeRows]);
 
   const handlePointerUp = useCallback((e: React.PointerEvent) => {
     if (activeModeRef.current === 'DRAGGING_CARD' || activeModeRef.current === 'RESIZING_CARD') {
@@ -438,7 +487,8 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
     // Always release lock and cleanup
     activeModeRef.current = 'NONE';
     lastInteractionRef.current = null;
-  }, [interaction, dropIndicator, localEvents, localResources, currentDate, dayStartHour, slotsPerHour, onEventChange, onResourcesReorder, selection]);
+    checkAndSyncProps();
+  }, [interaction, dropIndicator, localEvents, localResources, currentDate, dayStartHour, slotsPerHour, onEventChange, onResourcesReorder, selection, checkAndSyncProps]);
 
   const handleCreateJobHeader = useCallback(() => {
     setNewEventData({
@@ -481,6 +531,13 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
     setNewEventData(null);
   }, [newEventData, onEventAdd]);
 
+  const setScrollContainerRef = useCallback((node: HTMLDivElement | null) => {
+    if (node) {
+      scrollContainerRef.current = node;
+      setScrollElement(node);
+    }
+  }, []);
+
   return (
     <div className="flex flex-col w-full h-full flex-1 bg-background overflow-hidden relative transition-colors duration-200">
       <TimelineControlsHeader
@@ -491,12 +548,7 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
         theme={theme} onThemeToggle={handleThemeToggle}
       />
       <div
-        ref={(node) => {
-          if (node) {
-            (scrollContainerRef as any).current = node;
-            setScrollElement(node);
-          }
-        }}
+        ref={setScrollContainerRef}
         className="flex-1 min-h-0 flex relative overflow-y-auto overflow-x-hidden select-none"
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
@@ -504,15 +556,16 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
       >
         <ResourceSidebar
           resources={localResources}
-          virtualizer={rowVirtualizer}
+          virtualRows={rowVirtualizer.getVirtualItems()}
+          totalSize={rowVirtualizer.getTotalSize()}
           rowDragResourceId={rowDrag?.resourceId}
           startRowDrag={startRowDrag}
           renderResource={renderResource}
-          virtualVersion={virtualVersion}
         />
         <TimelineGrid
           gridRef={gridRef}
-          virtualizer={rowVirtualizer}
+          virtualRows={rowVirtualizer.getVirtualItems()}
+          totalSize={rowVirtualizer.getTotalSize()}
           isPanning={isPanning}
           dragPosition={dragPosition}
           dropIndicator={dropIndicator}
@@ -538,7 +591,6 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
           rowHeights={layoutEngine.rowHeights}
           eventLanes={layoutEngine.eventLanes}
           eventsByResource={layoutEngine.eventsByResource}
-          virtualVersion={virtualVersion}
         />
       </div>
       <JobCreationDialog

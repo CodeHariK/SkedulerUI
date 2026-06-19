@@ -1,5 +1,5 @@
 import React from 'react';
-import type { Resource } from './types';
+
 import {
   Dialog,
   DialogContent,
@@ -16,19 +16,13 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
+import type { Resource, NewEventData } from './types';
+
 interface JobCreationDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  newEventData: {
-    resourceId: string;
-    startTime: Date;
-    endTime: Date;
-    title: string;
-    location: string;
-    price: number;
-    status: 'Ongoing' | 'New' | 'Completed' | 'Cancelled';
-  } | null;
-  onChange: (data: any) => void;
+  newEventData: NewEventData | null;
+  onChange: (data: NewEventData) => void;
   onSave: () => void;
   resources: Resource[];
 }
@@ -100,7 +94,7 @@ export const JobCreationDialog: React.FC<JobCreationDialogProps> = ({
               </label>
               <Select
                 value={newEventData.status}
-                onValueChange={(val) => onChange({ ...newEventData, status: val })}
+                onValueChange={(val) => onChange({ ...newEventData, status: val as NewEventData['status'] })}
               >
                 <SelectTrigger className="w-full bg-background border-border">
                   <SelectValue placeholder="Select status" />

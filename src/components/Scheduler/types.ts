@@ -22,3 +22,14 @@ export interface EventItem {
     [key: string]: any;
   };
 }
+
+export interface NewEventData {
+  resourceId: string;
+  startTime: Date;
+  endTime: Date;
+  title: string;
+  location: string;
+  price: number;
+  status: 'Ongoing' | 'New' | 'Completed' | 'Cancelled';
+}
+

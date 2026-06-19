@@ -2,7 +2,7 @@ import React, { memo } from 'react';
 import type { Resource, EventItem } from './types';
 import { EventCard } from './EventCard';
 import { cn } from '@/lib/utils';
-import { Virtualizer } from '@tanstack/react-virtual';
+import type { VirtualItem } from '@tanstack/react-virtual';
 
 
 
@@ -40,11 +40,11 @@ interface TimelineGridProps {
     onResizeStart?: (e: React.PointerEvent, direction: 'left' | 'right') => void
   ) => React.ReactNode;
   interactionEventId: string | undefined;
-  virtualizer: Virtualizer<HTMLDivElement, Element>;
+  virtualRows: VirtualItem[];
+  totalSize: number;
   rowHeights: Record<string, number>;
   eventLanes: Record<string, number>;
   eventsByResource: Record<string, EventItem[]>;
-  virtualVersion?: number;
 }
 
 export const TimelineGrid: React.FC<TimelineGridProps> = memo(({
@@ -71,14 +71,12 @@ export const TimelineGrid: React.FC<TimelineGridProps> = memo(({
   handleRowPointerDown,
   renderEvent,
   interactionEventId,
-  virtualizer,
+  virtualRows,
+  totalSize,
   rowHeights,
   eventLanes,
   eventsByResource,
-  virtualVersion,
 }) => {
-  // Read virtualVersion to satisfy compiler and trigger re-renders
-  void virtualVersion;
   return (
     <div
       ref={gridRef}
@@ -119,8 +117,8 @@ export const TimelineGrid: React.FC<TimelineGridProps> = memo(({
             ))}
           </div>
 
-          <div style={{ height: `${virtualizer.getTotalSize()}px`, width: '100%', position: 'relative' }}>
-            {virtualizer.getVirtualItems().map((virtualRow) => {
+          <div style={{ height: `${totalSize}px`, width: '100%', position: 'relative' }}>
+            {virtualRows.map((virtualRow) => {
               const resource = resources[virtualRow.index];
               if (!resource) return null;
 
