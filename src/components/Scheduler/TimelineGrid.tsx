@@ -144,7 +144,7 @@ export const TimelineGrid: React.FC<TimelineGridProps> = memo(({
                 )}
                 style={{ 
                   height: `${rowHeights[resource.id] || 140}px`,
-                  backgroundColor: index % 2 === 0 ? 'rgb(250, 250, 250)' : 'rgb(247, 247, 247)'
+                  backgroundColor: index % 2 === 0 ? 'var(--row-bg-even)' : 'var(--row-bg-odd)'
                 }}
               >
                 {/* Events Placement Area */}

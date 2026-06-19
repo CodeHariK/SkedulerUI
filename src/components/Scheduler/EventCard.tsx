@@ -49,7 +49,7 @@ export const EventCard: React.FC<EventCardProps> = ({
       <PopoverTrigger asChild>
         <div
           className={cn(
-            "flex flex-col justify-between h-[85px] p-3 pl-4 rounded-xl border border-slate-100 bg-white dark:bg-[#1a1a24] dark:border-border/30 text-left shadow-xs hover:shadow-md relative select-none touch-none cursor-pointer group",
+            "flex flex-col justify-between h-[85px] p-3 pl-4 rounded-xl border border-slate-100 bg-white dark:bg-[#1a1a24] dark:border-border/30 text-left shadow-md hover:shadow-lg relative select-none touch-none cursor-pointer group",
             "transition-[box-shadow,transform,background-color] duration-200",
             "border-l-[4px]",
             borderClass,

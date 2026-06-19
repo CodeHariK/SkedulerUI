@@ -90,6 +90,8 @@
     --sidebar-accent-foreground: #101828;
     --sidebar-border: #e5e7eb;
     --sidebar-ring: #2563eb;
+    --row-bg-even: #fafafa;
+    --row-bg-odd: #f7f7f7;
 }
 
 .dark {
@@ -128,6 +130,8 @@
     --text-secondary: #cbd5e1;
     --text-tertiary: #9aa4b2;
     --border-disabled: #364153;
+    --row-bg-even: #151f30;
+    --row-bg-odd: #101828;
 }
 
 @layer base {
