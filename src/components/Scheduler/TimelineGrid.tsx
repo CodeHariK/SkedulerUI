@@ -90,7 +90,7 @@ export const TimelineGrid: React.FC<TimelineGridProps> = memo(({
       )}
       style={{ scrollBehavior: isPanning ? 'auto' : 'smooth' }}
     >
-      <div className="flex flex-col relative" style={{ width: `${totalWidth}px` }}>
+      <div className="flex flex-col relative" style={{ width: `${totalWidth}px`, minWidth: '100%' }}>
         {/* Hour Headers Row */}
         <div className="h-14 border-b border-border flex items-center relative bg-card sticky top-0 z-30">
           {hours.map((hour, idx) => (
@@ -162,7 +162,7 @@ export const TimelineGrid: React.FC<TimelineGridProps> = memo(({
                           gridColumnEnd: (startCol === endCol ? startCol + 4 : endCol) + 1,
                           gridRowStart: 1
                         }}
-                        className="bg-primary/15 border-2 border-dashed border-primary/30 rounded-lg h-[85px] z-0"
+                        className="bg-primary/15 border-2 border-dashed border-primary/30 rounded-lg h-[95px] z-0"
                       />
                     )}
 
@@ -174,7 +174,7 @@ export const TimelineGrid: React.FC<TimelineGridProps> = memo(({
                           gridColumnEnd: dropIndicator.endCol + 1,
                           gridRowStart: 1
                         }}
-                        className="bg-primary/10 border-2 border-dashed border-primary/40 rounded-xl h-[85px] z-0 mx-1"
+                        className="bg-primary/10 border-2 border-dashed border-primary/40 rounded-xl h-[95px] z-0 mx-1"
                       />
                     )}
 

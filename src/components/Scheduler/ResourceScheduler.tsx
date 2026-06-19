@@ -169,7 +169,7 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
   const totalSlots = useMemo(() => totalHours * slotsPerHour, [totalHours]);
   const hourWidth = useMemo(() => getHourWidth(zoomMinutes), [zoomMinutes]);
   const totalWidth = useMemo(() => totalHours * hourWidth, [totalHours, hourWidth]);
-  const slotWidth = useMemo(() => totalWidth / totalSlots, [totalWidth, totalSlots]);
+
   const hours = useMemo(() => Array.from({ length: totalHours }, (_, i) => dayStartHour + i), [totalHours, dayStartHour]);
 
   const layoutEngine = useMemo(() => {
@@ -328,11 +328,12 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
     pointerStartPosRef.current = { x: e.clientX, y: e.clientY };
 
     const gridRect = gridRef.current.getBoundingClientRect();
-    const slotIdx = Math.max(0, Math.floor((e.clientX - gridRect.left + gridRef.current.scrollLeft) / slotWidth));
+    const actualSlotWidth = gridRef.current.scrollWidth / totalSlots;
+    const slotIdx = Math.max(0, Math.floor((e.clientX - gridRect.left + gridRef.current.scrollLeft) / actualSlotWidth));
 
     setSelection({ resourceId, startSlot: slotIdx, currentSlot: slotIdx });
     lastInteractionRef.current = { slot: slotIdx };
-  }, [slotWidth]);
+  }, [totalSlots]);
 
   const startRowDrag = useCallback((e: React.PointerEvent, resourceId: string) => {
     e.preventDefault();
@@ -348,8 +349,10 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
     const gridEl = gridRef.current;
     if (!gridEl) return;
 
+    const actualSlotWidth = gridEl.scrollWidth / totalSlots;
+
     if (activeModeRef.current === 'RESIZING_CARD' && interaction) {
-      const currentSlot = Math.max(0, Math.floor((e.clientX - gridEl.getBoundingClientRect().left + gridEl.scrollLeft) / slotWidth));
+      const currentSlot = Math.max(0, Math.floor((e.clientX - gridEl.getBoundingClientRect().left + gridEl.scrollLeft) / actualSlotWidth));
       if (lastInteractionRef.current?.slot === currentSlot) return;
       lastInteractionRef.current = { slot: currentSlot };
 
@@ -392,7 +395,7 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
       }
 
       const logicalDeltaX = (e.clientX - interaction.startX) + scrollDeltaX;
-      const deltaSlots = Math.round(logicalDeltaX / slotWidth);
+      const deltaSlots = Math.round(logicalDeltaX / actualSlotWidth);
       const durationSlots = interaction.startColEnd - interaction.startColStart;
       const newStartSlot = Math.max(0, Math.min(totalSlots - durationSlots, interaction.startColStart + deltaSlots));
 
@@ -428,12 +431,12 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
         setRowDrag({ resourceId: rowDrag.resourceId, startY: e.clientY, currentIndex: newIndex });
       }
     } else if (activeModeRef.current === 'SELECTING_SLOT' && selection) {
-      const slotIdx = Math.max(0, Math.min(totalSlots, Math.floor((e.clientX - gridEl.getBoundingClientRect().left + gridEl.scrollLeft) / slotWidth)));
+      const slotIdx = Math.max(0, Math.min(totalSlots, Math.floor((e.clientX - gridEl.getBoundingClientRect().left + gridEl.scrollLeft) / actualSlotWidth)));
       if (lastInteractionRef.current?.slot === slotIdx) return;
       lastInteractionRef.current = { slot: slotIdx };
       setSelection(prev => prev ? { ...prev, currentSlot: slotIdx } : null);
     }
-  }, [interaction, rowDrag, selection, localResources, slotWidth, totalSlots, currentDate, dayStartHour, slotsPerHour, rowVirtualizer, canChangeRows]);
+  }, [interaction, rowDrag, selection, localResources, totalSlots, currentDate, dayStartHour, slotsPerHour, rowVirtualizer, canChangeRows]);
 
   const handlePointerUp = useCallback((e: React.PointerEvent) => {
     if (activeModeRef.current === 'DRAGGING_CARD' || activeModeRef.current === 'RESIZING_CARD') {
