@@ -46,13 +46,17 @@ export const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
           <h3 className="font-semibold text-text-primary text-sm truncate">{resource.name}</h3>
           <div className="flex items-center gap-1.5 mt-1 flex-nowrap overflow-hidden">
             {role && (<span className="text-[12px] tracking-wider text-text-tertiary uppercase shrink-0">{role}</span>)}
-            {jobsCount > 0 && (<span className="flex items-center gap-1 text-[10px] text-text-secondary font-medium shrink-0"><Calendar className="w-3 h-3" />{jobsCount} {jobsCount === 1 ? 'Job' : 'Jobs'}</span>)}
+            {jobsCount > 0 && (
+              <span className="flex items-center gap-1 text-[10px] text-text-secondary font-medium shrink-0"><Calendar className="w-3 h-3" />
+                {jobsCount} {jobsCount === 1 ? 'Job' : 'Jobs'}
+              </span>)}
           </div>
         </div>
 
       </div>
     );
   };
+
 
   return (
     <div className="w-[240px] flex-shrink-0 border-r border-border bg-card z-10 select-none">

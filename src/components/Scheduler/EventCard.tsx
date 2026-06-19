@@ -11,7 +11,7 @@ interface EventCardProps {
   resource?: Resource;
   isDragging: boolean;
   onDragStart: (e: React.PointerEvent) => void;
-  onResizeStart: (e: React.PointerEvent) => void;
+  onResizeStart: (e: React.PointerEvent, direction: 'left' | 'right') => void;
 }
 
 export const EventCard: React.FC<EventCardProps> = ({
@@ -47,12 +47,34 @@ export const EventCard: React.FC<EventCardProps> = ({
       <PopoverTrigger asChild>
         <div
           className={cn(
-            "flex flex-col justify-between h-[85px] p-3 pl-4 rounded-xl border border-slate-100 bg-white dark:bg-[#1a1a24] dark:border-border/30 text-left shadow-xs hover:shadow transition-all relative select-none touch-none cursor-pointer",
+            "flex flex-col justify-between h-[85px] p-3 pl-4 rounded-xl border border-slate-100 bg-white dark:bg-[#1a1a24] dark:border-border/30 text-left shadow-xs hover:shadow transition-all relative select-none touch-none cursor-pointer group",
             borderColors[event.status] || 'border-l-[4px] border-l-blue-500',
             isDragging && "opacity-60 scale-[1.02] shadow-md border-primary/40 ring-1 ring-primary/20"
           )}
           onPointerDown={onDragStart}
         >
+          {/* Left Resize Handle Overlay */}
+          <div
+            className="absolute left-0 top-0 w-2.5 h-full cursor-ew-resize z-20 flex items-center justify-start rounded-l-xl opacity-0 group-hover:opacity-100 transition-opacity"
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              onResizeStart(e, 'left');
+            }}
+          >
+            <div className="w-1 h-1/2 bg-primary/40 rounded-r-md" />
+          </div>
+
+          {/* Right Resize Handle Overlay */}
+          <div
+            className="absolute right-0 top-0 w-2.5 h-full cursor-ew-resize z-20 flex items-center justify-end rounded-r-xl opacity-0 group-hover:opacity-100 transition-opacity"
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              onResizeStart(e, 'right');
+            }}
+          >
+            <div className="w-1 h-1/2 bg-primary/40 rounded-l-md" />
+          </div>
+
           <div>
             <h4 className="font-bold text-text-primary text-xs truncate leading-snug">{event.title}</h4>
             {location && (
@@ -62,7 +84,7 @@ export const EventCard: React.FC<EventCardProps> = ({
               </div>
             )}
           </div>
-          
+
           <div className="flex items-center gap-3 mt-1.5 flex-nowrap overflow-hidden">
             <Badge
               variant="outline"
@@ -76,19 +98,6 @@ export const EventCard: React.FC<EventCardProps> = ({
             <span className="text-[10px] font-bold text-text-primary shrink-0">${price}</span>
             <span className="text-[10px] text-text-tertiary shrink-0 truncate">{formatFullTime(event.startTime, event.endTime)}</span>
           </div>
-
-          {/* Resize Handle at Bottom-Right */}
-          <div
-            className="absolute bottom-1 right-1 cursor-se-resize p-1 z-20 group"
-            onPointerDown={(e) => {
-              e.stopPropagation();
-              onResizeStart(e);
-            }}
-          >
-            <svg className="w-2.5 h-2.5 text-text-tertiary/40 group-hover:text-primary transition-colors" viewBox="0 0 10 10" fill="currentColor">
-              <path d="M10 0 L10 10 L0 10 Z" />
-            </svg>
-          </div>
         </div>
       </PopoverTrigger>
 
@@ -96,6 +105,3 @@ export const EventCard: React.FC<EventCardProps> = ({
     </Popover>
   );
 };
-
-
-

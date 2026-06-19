@@ -11,7 +11,11 @@ export interface ResourceSchedulerProps {
   dayStartHour?: number; // e.g. 6 for 6 AM
   dayEndHour?: number;   // e.g. 20 for 8 PM
   renderResource?: (resource: Resource, onGripMouseDown?: (e: React.PointerEvent) => void) => React.ReactNode;
-  renderEvent?: (event: EventItem, onDragStart?: (e: React.PointerEvent) => void, onResizeStart?: (e: React.PointerEvent) => void) => React.ReactNode;
+  renderEvent?: (
+    event: EventItem,
+    onDragStart?: (e: React.PointerEvent) => void,
+    onResizeStart?: (e: React.PointerEvent, direction: 'left' | 'right') => void
+  ) => React.ReactNode;
   onEventChange?: (event: EventItem) => void;
   onEventAdd?: (event: EventItem) => void;
   onResourcesReorder?: (resources: Resource[]) => void;
@@ -54,6 +58,7 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
     startColStart: number;
     startColEnd: number;
     startResourceId: string;
+    resizeDirection?: 'left' | 'right';
   } | null>(null);
 
   // Active row drag reordering state
@@ -187,7 +192,7 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
     });
   };
 
-  const startCardResize = (e: React.PointerEvent, eventId: string) => {
+  const startCardResize = (e: React.PointerEvent, eventId: string, direction: 'left' | 'right') => {
     e.preventDefault();
     e.stopPropagation();
     const event = localEvents.find(evt => evt.id === eventId);
@@ -202,7 +207,8 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
       startY: e.clientY,
       startColStart: gridColumnStart - 1,
       startColEnd: gridColumnEnd - 1,
-      startResourceId: event.resourceId
+      startResourceId: event.resourceId,
+      resizeDirection: direction
     });
   };
 
@@ -250,14 +256,24 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
       if (interaction.type === 'resize') {
         const clientXRelative = e.clientX - gridRect.left + gridEl.scrollLeft;
         const currentSlot = Math.max(0, Math.floor(clientXRelative / slotWidth));
-        const newEndSlot = Math.max(interaction.startColStart + 1, Math.min(totalSlots, currentSlot));
 
-        setLocalEvents(prev => prev.map(evt => {
-          if (evt.id === interaction.eventId) {
-            return { ...evt, endTime: slotToDate(newEndSlot) };
-          }
-          return evt;
-        }));
+        if (interaction.resizeDirection === 'left') {
+          const newStartSlot = Math.max(0, Math.min(interaction.startColEnd - 1, currentSlot));
+          setLocalEvents(prev => prev.map(evt => {
+            if (evt.id === interaction.eventId) {
+              return { ...evt, startTime: slotToDate(newStartSlot) };
+            }
+            return evt;
+          }));
+        } else {
+          const newEndSlot = Math.max(interaction.startColStart + 1, Math.min(totalSlots, currentSlot));
+          setLocalEvents(prev => prev.map(evt => {
+            if (evt.id === interaction.eventId) {
+              return { ...evt, endTime: slotToDate(newEndSlot) };
+            }
+            return evt;
+          }));
+        }
       } else if (interaction.type === 'move') {
         const containerRect = gridEl.getBoundingClientRect();
         const relativeY = e.clientY - containerRect.top + gridEl.scrollTop;

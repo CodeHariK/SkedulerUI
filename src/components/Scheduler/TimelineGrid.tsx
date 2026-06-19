@@ -24,12 +24,12 @@ interface TimelineGridProps {
   totalSlots: number;
   getEventGridSpan: (start: Date, end: Date) => { gridColumnStart: number; gridColumnEnd: number };
   startCardDrag: (e: React.PointerEvent, eventId: string) => void;
-  startCardResize: (e: React.PointerEvent, eventId: string) => void;
+  startCardResize: (e: React.PointerEvent, eventId: string, direction: 'left' | 'right') => void;
   handleRowPointerDown: (e: React.PointerEvent, resourceId: string) => void;
   renderEvent?: (
     event: EventItem,
     onDragStart?: (e: React.PointerEvent) => void,
-    onResizeStart?: (e: React.PointerEvent) => void
+    onResizeStart?: (e: React.PointerEvent, direction: 'left' | 'right') => void
   ) => React.ReactNode;
   interactionEventId: string | undefined;
 }
@@ -154,7 +154,7 @@ export const TimelineGrid: React.FC<TimelineGridProps> = ({
                           renderEvent(
                             event,
                             (e) => startCardDrag(e, event.id),
-                            (e) => startCardResize(e, event.id)
+                            (e, direction) => startCardResize(e, event.id, direction)
                           )
                         ) : (
                           <EventCard
@@ -162,7 +162,7 @@ export const TimelineGrid: React.FC<TimelineGridProps> = ({
                             resource={resource}
                             isDragging={isDraggingThis}
                             onDragStart={(e) => startCardDrag(e, event.id)}
-                            onResizeStart={(e) => startCardResize(e, event.id)}
+                            onResizeStart={(e, direction) => startCardResize(e, event.id, direction)}
                           />
                         )}
                       </div>
