@@ -3,7 +3,6 @@ import type { Resource, EventItem } from './types';
 import { EventCard } from './EventCard';
 import { cn } from '@/lib/utils';
 
-// FIXED: Computes consistent lanes for explicitly assigning to CSS grid so it bypasses unpredictable auto-placement layout jumps.
 const assignEventLanes = (events: EventItem[]) => {
   const sorted = [...events].sort((a, b) => {
     const diff = a.startTime.getTime() - b.startTime.getTime();
@@ -17,7 +16,7 @@ const assignEventLanes = (events: EventItem[]) => {
     for (let i = 0; i < lanes.length; i++) {
       if (lanes[i] <= event.startTime.getTime()) {
         lanes[i] = event.endTime.getTime();
-        eventLanes[event.id] = i + 1; // 1-based index for CSS Grid Row
+        eventLanes[event.id] = i + 1;
         placed = true;
         break;
       }
@@ -32,6 +31,8 @@ const assignEventLanes = (events: EventItem[]) => {
 
 interface TimelineGridProps {
   gridRef: React.RefObject<HTMLDivElement | null>;
+  dragPosition: { x: number; y: number } | null;
+  dropIndicator: { resourceId: string; startCol: number; endCol: number } | null;
   isPanning: boolean;
   onMouseDown: (e: React.MouseEvent) => void;
   onMouseMove: (e: React.MouseEvent) => void;
@@ -68,6 +69,8 @@ interface TimelineGridProps {
 
 export const TimelineGrid: React.FC<TimelineGridProps> = memo(({
   gridRef,
+  dragPosition,
+  dropIndicator,
   isPanning,
   onMouseDown,
   onMouseMove,
@@ -132,10 +135,11 @@ export const TimelineGrid: React.FC<TimelineGridProps> = memo(({
 
           {resources.map((resource) => {
             const resourceEvents = events.filter((e) => e.resourceId === resource.id);
-            const eventLanes = assignEventLanes(resourceEvents); // Calculate lanes for this row
+            const eventLanes = assignEventLanes(resourceEvents);
 
             const isDraggingRow = rowDragResourceId === resource.id;
             const isSelectedRow = selection && selection.resourceId === resource.id;
+            const isDropTargetRow = dropIndicator && dropIndicator.resourceId === resource.id;
 
             const startCol = isSelectedRow ? Math.min(selection.startSlot, selection.currentSlot) : 0;
             const endCol = isSelectedRow ? Math.max(selection.startSlot, selection.currentSlot) : 0;
@@ -161,9 +165,21 @@ export const TimelineGrid: React.FC<TimelineGridProps> = memo(({
                       style={{
                         gridColumnStart: startCol + 1,
                         gridColumnEnd: (startCol === endCol ? startCol + 4 : endCol) + 1,
-                        gridRowStart: 1 // Keep overlay anchored safely to top
+                        gridRowStart: 1
                       }}
                       className="bg-primary/15 border-2 border-dashed border-primary/30 rounded-lg h-[85px] z-0"
+                    />
+                  )}
+
+                  {/* Dashed Ghost Drop Indicator */}
+                  {isDropTargetRow && dropIndicator && (
+                    <div
+                      style={{
+                        gridColumnStart: dropIndicator.startCol + 1,
+                        gridColumnEnd: dropIndicator.endCol + 1,
+                        gridRowStart: 1
+                      }}
+                      className="bg-primary/10 border-2 border-dashed border-primary/40 rounded-xl h-[85px] z-0 mx-1"
                     />
                   )}
 
@@ -176,14 +192,28 @@ export const TimelineGrid: React.FC<TimelineGridProps> = memo(({
                       slotsPerHour
                     );
 
-                    const lane = eventLanes[event.id] || 1; // Retrieve explicitly assigned lane
+                    const lane = eventLanes[event.id] || 1;
                     const isDraggingThis = interactionEventId === event.id;
+
+                    const transformStyle = isDraggingThis && dragPosition
+                      ? `translate3d(${dragPosition.x}px, ${dragPosition.y}px, 0)`
+                      : 'translate3d(0, 0, 0)';
 
                     return (
                       <div
                         key={event.id}
-                        style={{ gridColumnStart, gridColumnEnd, gridRowStart: lane }} // Force grid assignment
-                        className="pointer-events-auto px-1 z-10"
+                        style={{
+                          gridColumnStart,
+                          gridColumnEnd,
+                          gridRowStart: lane,
+                          transform: transformStyle,
+                          zIndex: isDraggingThis ? 50 : 10
+                        }}
+                        // FIXED: Stripped out transition-all so layout resets happen instantly!
+                        className={cn(
+                          "pointer-events-auto px-1 relative",
+                          isDraggingThis && "opacity-90"
+                        )}
                       >
                         {renderEvent ? (
                           renderEvent(

@@ -1,0 +1,370 @@
+{
+    "color": {
+        "action": {
+            "primary": {
+                "$type": "color",
+                "$value": "{color.primary.600}"
+            },
+            "primaryHover": {
+                "$type": "color",
+                "$value": "{color.primary.700}"
+            },
+            "primaryActive": {
+                "$type": "color",
+                "$value": "{color.primary.800}"
+            },
+            "secondary": {
+                "$type": "color",
+                "$value": "{color.secondary.500}"
+            },
+            "secondaryHover": {
+                "$type": "color",
+                "$value": "{color.secondary.600}"
+            }
+        }
+    },
+    "text": {
+        "primary": {
+            "$type": "color",
+            "$value": "{color.neutral.900}"
+        },
+        "secondary": {
+            "$type": "color",
+            "$value": "{color.neutral.700}"
+        },
+        "tertiary": {
+            "$type": "color",
+            "$value": "{color.neutral.500}"
+        },
+        "inverse": {
+            "$type": "color",
+            "$value": "{color.white}"
+        },
+        "disabled": {
+            "$type": "color",
+            "$value": "{color.neutral.400}"
+        }
+    },
+    "surface": {
+        "default": {
+            "$type": "color",
+            "$value": "{color.white}"
+        },
+        "subtle": {
+            "$type": "color",
+            "$value": "{color.neutral.50}"
+        },
+        "muted": {
+            "$type": "color",
+            "$value": "{color.neutral.100}"
+        },
+        "disabled": {
+            "$type": "color",
+            "$value": "{color.neutral.100}"
+        }
+    },
+    "border": {
+        "default": {
+            "$type": "color",
+            "$value": "{color.neutral.200}"
+        },
+        "strong": {
+            "$type": "color",
+            "$value": "{color.neutral.300}"
+        },
+        "disabled": {
+            "$type": "color",
+            "$value": "{color.neutral.200}"
+        }
+    },
+    "status": {
+        "success": {
+            "$type": "color",
+            "$value": "{color.semantic.success}"
+        },
+        "warning": {
+            "$type": "color",
+            "$value": "{color.semantic.warning}"
+        },
+        "error": {
+            "$type": "color",
+            "$value": "{color.semantic.error}"
+        },
+        "info": {
+            "$type": "color",
+            "$value": "{color.semantic.info}"
+        }
+    },
+    "typography": {
+        "h1": {
+            "family": {
+                "$type": "fontFamilies",
+                "$value": "{font.family.primary}"
+            },
+            "weight": {
+                "$type": "fontWeights",
+                "$value": "{font.weight.bold}"
+            },
+            "size": {
+                "$type": "fontSizes",
+                "$value": "{font.size.48}"
+            },
+            "lineHeight": {
+                "$type": "lineHeights",
+                "$value": "{font.lineHeight.58}"
+            }
+        },
+        "h2": {
+            "family": {
+                "$type": "fontFamilies",
+                "$value": "{font.family.primary}"
+            },
+            "weight": {
+                "$type": "fontWeights",
+                "$value": "{font.weight.bold}"
+            },
+            "size": {
+                "$type": "fontSizes",
+                "$value": "{font.size.40}"
+            },
+            "lineHeight": {
+                "$type": "lineHeights",
+                "$value": "{font.lineHeight.48}"
+            }
+        },
+        "h3": {
+            "family": {
+                "$type": "fontFamilies",
+                "$value": "{font.family.primary}"
+            },
+            "weight": {
+                "$type": "fontWeights",
+                "$value": "{font.weight.bold}"
+            },
+            "size": {
+                "$type": "fontSizes",
+                "$value": "{font.size.32}"
+            },
+            "lineHeight": {
+                "$type": "lineHeights",
+                "$value": "{font.lineHeight.38}"
+            }
+        },
+        "h4": {
+            "family": {
+                "$type": "fontFamilies",
+                "$value": "{font.family.primary}"
+            },
+            "weight": {
+                "$type": "fontWeights",
+                "$value": "{font.weight.bold}"
+            },
+            "size": {
+                "$type": "fontSizes",
+                "$value": "{font.size.28}"
+            },
+            "lineHeight": {
+                "$type": "lineHeights",
+                "$value": "{font.lineHeight.34}"
+            }
+        },
+        "h5": {
+            "family": {
+                "$type": "fontFamilies",
+                "$value": "{font.family.primary}"
+            },
+            "weight": {
+                "$type": "fontWeights",
+                "$value": "{font.weight.bold}"
+            },
+            "size": {
+                "$type": "fontSizes",
+                "$value": "{font.size.24}"
+            },
+            "lineHeight": {
+                "$type": "lineHeights",
+                "$value": "{font.lineHeight.28}"
+            }
+        },
+        "subtitle1": {
+            "family": {
+                "$type": "fontFamilies",
+                "$value": "{font.family.primary}"
+            },
+            "weight": {
+                "$type": "fontWeights",
+                "$value": "{font.weight.semibold}"
+            },
+            "size": {
+                "$type": "fontSizes",
+                "$value": "{font.size.18}"
+            },
+            "lineHeight": {
+                "$type": "lineHeights",
+                "$value": "{font.lineHeight.28}"
+            }
+        },
+        "subtitle2": {
+            "family": {
+                "$type": "fontFamilies",
+                "$value": "{font.family.primary}"
+            },
+            "weight": {
+                "$type": "fontWeights",
+                "$value": "{font.weight.semibold}"
+            },
+            "size": {
+                "$type": "fontSizes",
+                "$value": "{font.size.16}"
+            },
+            "lineHeight": {
+                "$type": "lineHeights",
+                "$value": "{font.lineHeight.24}"
+            }
+        },
+        "body1": {
+            "family": {
+                "$type": "fontFamilies",
+                "$value": "{font.family.primary}"
+            },
+            "weight": {
+                "$type": "fontWeights",
+                "$value": "{font.weight.regular}"
+            },
+            "size": {
+                "$type": "fontSizes",
+                "$value": "{font.size.16}"
+            },
+            "lineHeight": {
+                "$type": "lineHeights",
+                "$value": "{font.lineHeight.24}"
+            }
+        },
+        "body2": {
+            "family": {
+                "$type": "fontFamilies",
+                "$value": "{font.family.primary}"
+            },
+            "weight": {
+                "$type": "fontWeights",
+                "$value": "{font.weight.medium}"
+            },
+            "size": {
+                "$type": "fontSizes",
+                "$value": "{font.size.16}"
+            },
+            "lineHeight": {
+                "$type": "lineHeights",
+                "$value": "{font.lineHeight.24}"
+            }
+        },
+        "body3": {
+            "family": {
+                "$type": "fontFamilies",
+                "$value": "{font.family.primary}"
+            },
+            "weight": {
+                "$type": "fontWeights",
+                "$value": "{font.weight.regular}"
+            },
+            "size": {
+                "$type": "fontSizes",
+                "$value": "{font.size.14}"
+            },
+            "lineHeight": {
+                "$type": "lineHeights",
+                "$value": "{font.lineHeight.20}"
+            }
+        },
+        "body4": {
+            "family": {
+                "$type": "fontFamilies",
+                "$value": "{font.family.primary}"
+            },
+            "weight": {
+                "$type": "fontWeights",
+                "$value": "{font.weight.medium}"
+            },
+            "size": {
+                "$type": "fontSizes",
+                "$value": "{font.size.14}"
+            },
+            "lineHeight": {
+                "$type": "lineHeights",
+                "$value": "{font.lineHeight.20}"
+            }
+        },
+        "caption": {
+            "family": {
+                "$type": "fontFamilies",
+                "$value": "{font.family.primary}"
+            },
+            "weight": {
+                "$type": "fontWeights",
+                "$value": "{font.weight.regular}"
+            },
+            "size": {
+                "$type": "fontSizes",
+                "$value": "{font.size.12}"
+            },
+            "lineHeight": {
+                "$type": "lineHeights",
+                "$value": "{font.lineHeight.16}"
+            }
+        },
+        "caption2": {
+            "family": {
+                "$type": "fontFamilies",
+                "$value": "{font.family.primary}"
+            },
+            "weight": {
+                "$type": "fontWeights",
+                "$value": "{font.weight.medium}"
+            },
+            "size": {
+                "$type": "fontSizes",
+                "$value": "{font.size.12}"
+            },
+            "lineHeight": {
+                "$type": "lineHeights",
+                "$value": "{font.lineHeight.16}"
+            }
+        },
+        "caption3": {
+            "family": {
+                "$type": "fontFamilies",
+                "$value": "{font.family.primary}"
+            },
+            "weight": {
+                "$type": "fontWeights",
+                "$value": "{font.weight.medium}"
+            },
+            "size": {
+                "$type": "fontSizes",
+                "$value": "{font.size.10}"
+            },
+            "lineHeight": {
+                "$type": "lineHeights",
+                "$value": "{font.lineHeight.14}"
+            }
+        },
+        "label": {
+            "family": {
+                "$type": "fontFamilies",
+                "$value": "{font.family.primary}"
+            },
+            "weight": {
+                "$type": "fontWeights",
+                "$value": "{font.weight.medium}"
+            },
+            "size": {
+                "$type": "fontSizes",
+                "$value": "{font.size.12}"
+            },
+            "lineHeight": {
+                "$type": "lineHeights",
+                "$value": "{font.lineHeight.16}"
+            }
+        }
+    }
+}

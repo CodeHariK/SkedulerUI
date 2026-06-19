@@ -5,7 +5,6 @@ import { ResourceSidebar } from './ResourceSidebar';
 import { TimelineGrid } from './TimelineGrid';
 import { JobCreationDialog } from './JobCreationDialog';
 
-// --- Pure Helper Functions Extracted Outside ---
 const getHourWidth = (zoom: number) => {
   switch (zoom) {
     case 15: return 240;
@@ -40,7 +39,6 @@ const slotToDate = (slot: number, currentDate: Date, dayStartHour: number, slots
   return date;
 };
 
-// FIXED: Added ID tie-breaker to prevent unstable sorting boundary loops
 const calculateRowHeights = (
   resources: Resource[],
   events: EventItem[],
@@ -54,7 +52,7 @@ const calculateRowHeights = (
       .filter(e => e.resourceId === resource.id)
       .sort((a, b) => {
         const diff = a.startTime.getTime() - b.startTime.getTime();
-        return diff !== 0 ? diff : a.id.localeCompare(b.id); // Tie-breaker!
+        return diff !== 0 ? diff : a.id.localeCompare(b.id);
       });
 
     if (resourceEvents.length === 0) {
@@ -90,6 +88,7 @@ export interface ResourceSchedulerProps {
   events: EventItem[];
   dayStartHour?: number;
   dayEndHour?: number;
+  canChangeRows?: boolean;
   renderResource?: (resource: Resource, onGripMouseDown?: (e: React.PointerEvent) => void) => React.ReactNode;
   renderEvent?: (
     event: EventItem,
@@ -106,6 +105,7 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
   events,
   dayStartHour = 6,
   dayEndHour = 20,
+  canChangeRows = true,
   renderResource,
   renderEvent,
   onEventChange,
@@ -132,10 +132,20 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
     type: 'move' | 'resize';
     startX: number;
     startY: number;
+    startScrollLeft: number;
+    startScrollTop: number;
     startColStart: number;
     startColEnd: number;
     startResourceId: string;
     resizeDirection?: 'left' | 'right';
+  } | null>(null);
+
+  const [dragPosition, setDragPosition] = useState<{ x: number, y: number } | null>(null);
+
+  const [dropIndicator, setDropIndicator] = useState<{
+    resourceId: string;
+    startCol: number;
+    endCol: number;
   } | null>(null);
 
   const [rowDrag, setRowDrag] = useState<{
@@ -200,8 +210,18 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
     lastInteractionRef.current = { slot: gridColumnStart - 1, resourceId: event.resourceId };
 
     setInteraction({
-      eventId, type: 'move', startX: e.clientX, startY: e.clientY,
+      eventId, type: 'move',
+      startX: e.clientX, startY: e.clientY,
+      startScrollLeft: gridRef.current?.scrollLeft || 0,
+      startScrollTop: gridRef.current?.scrollTop || 0,
       startColStart: gridColumnStart - 1, startColEnd: gridColumnEnd - 1, startResourceId: event.resourceId
+    });
+
+    setDragPosition({ x: 0, y: 0 });
+    setDropIndicator({
+      resourceId: event.resourceId,
+      startCol: gridColumnStart - 1,
+      endCol: gridColumnEnd - 1
     });
   }, [localEvents, dayStartHour, totalHours, slotsPerHour]);
 
@@ -215,7 +235,10 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
     lastInteractionRef.current = { slot: direction === 'left' ? gridColumnStart - 1 : gridColumnEnd - 1 };
 
     setInteraction({
-      eventId, type: 'resize', startX: e.clientX, startY: e.clientY,
+      eventId, type: 'resize',
+      startX: e.clientX, startY: e.clientY,
+      startScrollLeft: gridRef.current?.scrollLeft || 0,
+      startScrollTop: gridRef.current?.scrollTop || 0,
       startColStart: gridColumnStart - 1, startColEnd: gridColumnEnd - 1,
       startResourceId: event.resourceId, resizeDirection: direction
     });
@@ -260,32 +283,46 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
           setLocalEvents(prev => prev.map(evt => evt.id === interaction.eventId ? { ...evt, endTime: slotToDate(newEndSlot, currentDate, dayStartHour, slotsPerHour) } : evt));
         }
       } else if (interaction.type === 'move') {
-        const gridY = (e.clientY - gridRect.top + gridEl.scrollTop) - 56;
-        let accumulatedHeight = 0;
-        let targetRowIdx = localResources.length - 1;
 
-        for (let i = 0; i < localResources.length; i++) {
-          accumulatedHeight += rowHeights[localResources[i].id] || 140;
-          if (gridY <= accumulatedHeight) { targetRowIdx = i; break; }
+        const scrollDeltaX = gridEl.scrollLeft - interaction.startScrollLeft;
+        const scrollDeltaY = gridEl.scrollTop - interaction.startScrollTop;
+
+        setDragPosition({
+          x: (e.clientX - interaction.startX) + scrollDeltaX,
+          y: (e.clientY - interaction.startY) + scrollDeltaY
+        });
+
+        let targetResource: Resource;
+
+        if (canChangeRows) {
+          const gridY = (e.clientY - gridRect.top + gridEl.scrollTop) - 56;
+          let accumulatedHeight = 0;
+          let targetRowIdx = localResources.length - 1;
+
+          for (let i = 0; i < localResources.length; i++) {
+            accumulatedHeight += rowHeights[localResources[i].id] || 140;
+            if (gridY <= accumulatedHeight) { targetRowIdx = i; break; }
+          }
+
+          targetRowIdx = Math.max(0, Math.min(localResources.length - 1, targetRowIdx));
+          targetResource = localResources[targetRowIdx];
+        } else {
+          targetResource = localResources.find(r => r.id === interaction.startResourceId) || localResources[0];
         }
 
-        targetRowIdx = Math.max(0, Math.min(localResources.length - 1, targetRowIdx));
-        const targetResource = localResources[targetRowIdx];
-
-        const deltaSlots = Math.round((e.clientX - interaction.startX) / slotWidth);
+        const logicalDeltaX = (e.clientX - interaction.startX) + scrollDeltaX;
+        const deltaSlots = Math.round(logicalDeltaX / slotWidth);
         const durationSlots = interaction.startColEnd - interaction.startColStart;
         const newStartSlot = Math.max(0, Math.min(totalSlots - durationSlots, interaction.startColStart + deltaSlots));
 
         if (lastInteractionRef.current?.slot === newStartSlot && lastInteractionRef.current?.resourceId === targetResource.id) return;
         lastInteractionRef.current = { slot: newStartSlot, resourceId: targetResource.id };
 
-        const newEndSlot = newStartSlot + durationSlots;
-
-        setLocalEvents(prev => prev.map(evt => evt.id === interaction.eventId ? {
-          ...evt, resourceId: targetResource.id,
-          startTime: slotToDate(newStartSlot, currentDate, dayStartHour, slotsPerHour),
-          endTime: slotToDate(newEndSlot, currentDate, dayStartHour, slotsPerHour)
-        } : evt));
+        setDropIndicator({
+          resourceId: targetResource.id,
+          startCol: newStartSlot,
+          endCol: newStartSlot + durationSlots
+        });
       }
     } else if (rowDrag) {
       const gridRect = gridEl.getBoundingClientRect();
@@ -307,38 +344,61 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
         setRowDrag({ resourceId: rowDrag.resourceId, startY: e.clientY, currentIndex: newIndex });
       }
     } else if (selection) {
-      // FIXED: Swapped gridRef.current for gridEl
       const slotIdx = Math.max(0, Math.min(totalSlots, Math.floor((e.clientX - gridEl.getBoundingClientRect().left + gridEl.scrollLeft) / slotWidth)));
       if (lastInteractionRef.current?.slot === slotIdx) return;
       lastInteractionRef.current = { slot: slotIdx };
       setSelection(prev => prev ? { ...prev, currentSlot: slotIdx } : null);
     }
-  }, [interaction, rowDrag, selection, localResources, slotWidth, totalSlots, currentDate, dayStartHour, slotsPerHour, rowHeights]);
+  }, [interaction, rowDrag, selection, localResources, slotWidth, totalSlots, currentDate, dayStartHour, slotsPerHour, rowHeights, canChangeRows]);
 
   const handlePointerUp = useCallback(() => {
     if (interaction) {
-      const finalEvent = localEvents.find(evt => evt.id === interaction.eventId);
-      if (finalEvent && onEventChange) onEventChange(finalEvent);
+      if (interaction.type === 'move' && dropIndicator) {
+        const finalEvent = localEvents.find(evt => evt.id === interaction.eventId);
+        if (finalEvent) {
+          const updatedEvent = {
+            ...finalEvent,
+            resourceId: dropIndicator.resourceId,
+            startTime: slotToDate(dropIndicator.startCol, currentDate, dayStartHour, slotsPerHour),
+            endTime: slotToDate(dropIndicator.endCol, currentDate, dayStartHour, slotsPerHour)
+          };
+          setLocalEvents(prev => prev.map(evt => evt.id === interaction.eventId ? updatedEvent : evt));
+          if (onEventChange) onEventChange(updatedEvent);
+        }
+      } else if (interaction.type === 'resize') {
+        const finalEvent = localEvents.find(evt => evt.id === interaction.eventId);
+        if (finalEvent && onEventChange) onEventChange(finalEvent);
+      }
+
       setInteraction(null);
+      setDragPosition(null);
+      setDropIndicator(null);
     } else if (rowDrag) {
       if (onResourcesReorder) onResourcesReorder(localResources);
       setRowDrag(null);
     } else if (selection) {
+
+      // FIXED: Discard the selection if it was merely a click
+      if (selection.startSlot === selection.currentSlot) {
+        setSelection(null);
+        lastInteractionRef.current = null;
+        return;
+      }
+
       const start = Math.min(selection.startSlot, selection.currentSlot);
       const end = Math.max(selection.startSlot, selection.currentSlot);
-      const finalEnd = start === end ? start + 4 : end;
 
       setNewEventData({
         resourceId: selection.resourceId,
         startTime: slotToDate(start, currentDate, dayStartHour, slotsPerHour),
-        endTime: slotToDate(finalEnd, currentDate, dayStartHour, slotsPerHour),
+        endTime: slotToDate(end, currentDate, dayStartHour, slotsPerHour),
         title: 'New Job', location: '', price: 150, status: 'New'
       });
       setShowJobCreationModal(true);
       setSelection(null);
     }
     lastInteractionRef.current = null;
-  }, [interaction, rowDrag, selection, localEvents, localResources, currentDate, dayStartHour, slotsPerHour, onEventChange, onResourcesReorder]);
+  }, [interaction, dropIndicator, localEvents, localResources, currentDate, dayStartHour, slotsPerHour, onEventChange, onResourcesReorder, rowDrag, selection]);
 
   const handleCreateJobHeader = useCallback(() => {
     setNewEventData({
@@ -397,6 +457,7 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
         />
         <TimelineGrid
           gridRef={gridRef} rowHeights={rowHeights} isPanning={isPanning}
+          dragPosition={dragPosition} dropIndicator={dropIndicator}
           onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUpOrLeave={handleMouseUpOrLeave}
           totalWidth={totalWidth} hours={hours} totalHours={totalHours} formatHourLabel={formatHourLabel}
           resources={localResources} events={localEvents} rowDragResourceId={rowDrag?.resourceId} selection={selection}

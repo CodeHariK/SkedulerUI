@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import type { Resource, EventItem } from './types';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
@@ -21,6 +21,8 @@ export const EventCard: React.FC<EventCardProps> = ({
   onDragStart,
   onResizeStart,
 }) => {
+  // NEW: Track where the mouse started so we can distinguish a click from a drag
+  const dragStartPos = useRef({ x: 0, y: 0 });
   const location = event.metadata?.location || '';
   const price = event.metadata?.price || 0;
 
@@ -47,12 +49,24 @@ export const EventCard: React.FC<EventCardProps> = ({
       <PopoverTrigger asChild>
         <div
           className={cn(
-            "flex flex-col justify-between h-[85px] p-3 pl-4 rounded-xl border border-slate-100 bg-white dark:bg-[#1a1a24] dark:border-border/30 text-left shadow-xs hover:shadow transition-all relative select-none touch-none cursor-pointer group",
+            "flex flex-col justify-between h-[85px] p-3 pl-4 rounded-xl border border-slate-100 bg-white dark:bg-[#1a1a24] dark:border-border/30 text-left shadow-xs hover:shadow-md relative select-none touch-none cursor-pointer group",
+            "transition-[box-shadow,transform,background-color] duration-200", // FIXED: Replaced transition-all so positional transforms don't animate wildly
             borderColors[event.status] || 'border-l-[4px] border-l-blue-500',
-            // ADDED: !transition-none so the drag snaps instantly to the mouse pointer
-            isDragging && "opacity-60 scale-[1.02] shadow-md border-primary/40 ring-1 ring-primary/20 !transition-none"
+            isDragging && "opacity-60 scale-[1.02] shadow-md border-primary/40 ring-1 ring-primary/20"
           )}
-          onPointerDown={onDragStart}
+          onPointerDown={(e) => {
+            dragStartPos.current = { x: e.clientX, y: e.clientY };
+            onDragStart(e);
+          }}
+          onClickCapture={(e) => {
+            // NEW: If the mouse moved more than 5px, it was a drag. Kill the click!
+            const dx = Math.abs(e.clientX - dragStartPos.current.x);
+            const dy = Math.abs(e.clientY - dragStartPos.current.y);
+            if (dx > 5 || dy > 5) {
+              e.preventDefault();
+              e.stopPropagation();
+            }
+          }}
         >
           {/* Left Resize Handle Overlay */}
           <div

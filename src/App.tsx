@@ -10,7 +10,7 @@ function App() {
     <div className="min-h-screen bg-background text-foreground flex flex-col font-sans">
       {/* Navigation Header */}
       <NavigationHeader activeTab={activeTab} onTabChange={setActiveTab} />
-      
+
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col overflow-hidden w-full">
         {activeTab === 'Scheduler' ? (
@@ -19,6 +19,7 @@ function App() {
             events={mockEvents}
             dayStartHour={6}
             dayEndHour={20}
+            canChangeRows={true}
           />
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center border border-dashed border-border rounded-xl bg-white m-6 p-8 text-center shadow-sm">
