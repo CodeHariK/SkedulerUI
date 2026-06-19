@@ -95,9 +95,9 @@ export const NavigationHeader: React.FC<NavigationHeaderProps> = ({
           {/* Avatar Image Placeholder/Style matching Figma */}
           <div className="w-8 h-8 rounded-full overflow-hidden bg-slate-200 border border-border flex items-center justify-center text-xs font-semibold text-text-secondary">
             {/* Standard fallback, or we can use custom styling */}
-            <span className="text-[10px] text-text-primary font-bold">JD</span>
+            <span className="text-[10px] text-text-primary font-bold">AW</span>
           </div>
-          <span className="text-sm font-semibold text-text-primary">John Doe</span>
+          <span className="text-sm font-semibold text-text-primary">Alan Wake</span>
           <ChevronDown className="w-4 h-4 text-text-tertiary" />
         </div>
       </div>

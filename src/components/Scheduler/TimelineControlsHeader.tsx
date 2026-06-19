@@ -1,16 +1,19 @@
 import React from 'react';
-import { 
-  Map, 
-  Calendar, 
-  ChevronLeft, 
-  ChevronRight, 
-  ChevronDown, 
-  Minus, 
-  Plus, 
-  Sun, 
-  Moon 
+import {
+  Map,
+  Calendar as CalendarIcon,
+  ChevronLeft,
+  ChevronRight,
+  ChevronDown,
+  Minus,
+  Plus,
+  Sun,
+  Moon
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Calendar } from '@/components/ui/calendar';
+import { Button } from '@/components/ui/button';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 interface TimelineControlsHeaderProps {
   currentDate: Date;
@@ -80,128 +83,151 @@ export const TimelineControlsHeader: React.FC<TimelineControlsHeaderProps> = ({
   };
 
   return (
-    <div 
+    <div
       className="bg-white dark:bg-[#141414] border-b border-[#e5e7eb] dark:border-[#2a2a2a] flex flex-col md:flex-row items-center justify-between gap-4 px-5 py-3 w-full transition-colors duration-200 select-none"
       data-node-id="3603:12056"
     >
       {/* Left: Map View Toggle Button */}
       <div className="flex items-center w-full md:w-[240px] shrink-0" data-node-id="3603:12057">
-        <button 
+        <Button
           onClick={onMapViewToggle}
+          variant="outline"
           className={cn(
-            "bg-white dark:bg-[#1c1c1c] border border-[#e5e7eb] dark:border-[#2a2a2a] hover:bg-[#fafafa] dark:hover:bg-[#252525] rounded-full px-3.5 py-1.5 flex gap-2 items-center justify-center cursor-pointer transition-all duration-200 shadow-xs active:scale-[0.98]",
+            "bg-white dark:bg-[#1c1c1c] border border-[#e5e7eb] dark:border-[#2a2a2a] hover:bg-[#fafafa] dark:hover:bg-[#252525] rounded-full h-auto px-3.5 py-1.5 flex gap-2 items-center justify-center cursor-pointer transition-all duration-200 shadow-xs active:scale-[0.98]",
             isMapViewActive && "border-green-500/40 bg-green-50/20 dark:bg-green-950/10"
           )}
           data-node-id="3330:25089"
         >
           <div className="flex gap-2.5 items-center">
             {/* Status indicator dot */}
-            <div 
+            <div
               className={cn(
                 "rounded-full size-2 transition-all duration-300",
-                isMapViewActive 
-                  ? "bg-[#22c55e] border border-green-500/40 animate-pulse" 
+                isMapViewActive
+                  ? "bg-[#22c55e] border border-green-500/40 animate-pulse"
                   : "bg-gray-300 dark:bg-gray-700 border border-transparent"
               )}
-              data-node-id="3330:25084" 
+              data-node-id="3330:25084"
             />
             <Map className="size-4 text-[#364153] dark:text-[#a0aec0]" />
           </div>
           <span className="font-['Satoshi'] font-medium text-[14px] leading-[20px] text-[#364153] dark:text-[#cbd5e1]">
             Map View
           </span>
-        </button>
+        </Button>
       </div>
 
       {/* Center: Date Selection Controls */}
       <div className="flex items-center gap-2.5" data-node-id="3603:12059">
         <div className="flex gap-2 items-center">
           {/* Left Arrow Button */}
-          <button 
+          <Button
             onClick={handlePrevDay}
+            variant="outline"
+            size="icon"
             className="bg-white dark:bg-[#1c1c1c] border border-[#e5e7eb] dark:border-[#2a2a2a] hover:bg-[#fafafa] dark:hover:bg-[#252525] rounded-full size-8 flex items-center justify-center cursor-pointer transition-all duration-200 shadow-xs active:scale-90"
             data-node-id="3338:6738"
           >
             <ChevronLeft className="size-4 text-[#364153] dark:text-[#a0aec0]" />
-          </button>
+          </Button>
 
-          {/* Date Picker Button (visual mock) */}
-          <div 
-            className="bg-white dark:bg-[#1c1c1c] border border-[#e5e7eb] dark:border-[#2a2a2a] rounded-full px-3.5 py-1.5 flex gap-2 items-center cursor-default shadow-xs"
-            data-node-id="3338:6739"
-          >
-            <Calendar className="size-4 text-[#364153] dark:text-[#a0aec0]" />
-            <span className="font-['Satoshi'] font-medium text-[14px] leading-[20px] text-[#364153] dark:text-[#cbd5e1]">
-              {formatDateLabel(currentDate)}
-            </span>
-          </div>
+          {/* Date Picker Button with Shadcn Calendar */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                className="bg-white dark:bg-[#1c1c1c] border border-[#e5e7eb] dark:border-[#2a2a2a] hover:bg-[#fafafa] dark:hover:bg-[#252525] rounded-full h-auto px-3.5 py-1.5 flex gap-2 items-center cursor-pointer shadow-xs active:scale-[0.98] transition-all"
+                data-node-id="3338:6739"
+              >
+                <CalendarIcon className="size-4 text-[#364153] dark:text-[#a0aec0]" />
+                <span className="font-['Satoshi'] font-medium text-[14px] leading-[20px] text-[#364153] dark:text-[#cbd5e1]">
+                  {formatDateLabel(currentDate)}
+                </span>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0 border border-border bg-card shadow-md rounded-xl" align="center">
+              <Calendar
+                mode="single"
+                selected={currentDate}
+                onSelect={(date) => date && onDateChange(date)}
+              />
+            </PopoverContent>
+          </Popover>
 
           {/* Right Arrow Button */}
-          <button 
+          <Button
             onClick={handleNextDay}
+            variant="outline"
+            size="icon"
             className="bg-white dark:bg-[#1c1c1c] border border-[#e5e7eb] dark:border-[#2a2a2a] hover:bg-[#fafafa] dark:hover:bg-[#252525] rounded-full size-8 flex items-center justify-center cursor-pointer transition-all duration-200 shadow-xs active:scale-90"
             data-node-id="3338:6740"
           >
             <ChevronRight className="size-4 text-[#364153] dark:text-[#a0aec0]" />
-          </button>
+          </Button>
         </div>
 
         {/* Today Button Dropdown */}
-        <button 
+        <Button
           onClick={handleToday}
-          className="bg-white dark:bg-[#1c1c1c] border border-[#e5e7eb] dark:border-[#2a2a2a] hover:bg-[#fafafa] dark:hover:bg-[#252525] rounded-full px-3.5 py-1.5 flex gap-1.5 items-center cursor-pointer transition-all duration-200 shadow-xs active:scale-[0.98]"
+          variant="outline"
+          className="bg-white dark:bg-[#1c1c1c] border border-[#e5e7eb] dark:border-[#2a2a2a] hover:bg-[#fafafa] dark:hover:bg-[#252525] rounded-full h-auto px-3.5 py-1.5 flex gap-1.5 items-center cursor-pointer transition-all duration-200 shadow-xs active:scale-[0.98]"
           data-node-id="3603:12061"
         >
           <span className="font-['Satoshi'] font-medium text-[14px] leading-[20px] text-[#364153] dark:text-[#cbd5e1]">
             Today
           </span>
           <ChevronDown className="size-4 text-[#364153] dark:text-[#a0aec0]" />
-        </button>
+        </Button>
       </div>
 
       {/* Right: Zoom Controls, Reset, Create, Theme */}
       <div className="flex items-center gap-2 justify-end w-full md:w-auto flex-wrap" data-node-id="3603:12062">
         {/* Zoom Selector */}
-        <div 
+        <div
           className="bg-white dark:bg-[#1c1c1c] border border-[#e5e7eb] dark:border-[#2a2a2a] rounded-full p-1.5 flex gap-2 items-center shadow-xs"
           data-node-id="3603:12063"
         >
-          <button 
+          <Button
             onClick={decreaseZoom}
             disabled={zoomMinutes <= 15}
-            className="hover:bg-[#fafafa] dark:hover:bg-[#252525] rounded-full p-1 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            variant="ghost"
+            size="icon"
+            className="hover:bg-[#fafafa] dark:hover:bg-[#252525] rounded-full size-6 p-1 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
           >
             <Minus className="size-4 text-[#364153] dark:text-[#a0aec0]" />
-          </button>
-          
+          </Button>
+
           <span className="font-['Satoshi'] font-medium text-[14px] leading-[20px] text-[#364153] dark:text-[#cbd5e1] min-w-[50px] text-center">
             {zoomMinutes} min
           </span>
 
-          <button 
+          <Button
             onClick={increaseZoom}
             disabled={zoomMinutes >= 120}
-            className="hover:bg-[#fafafa] dark:hover:bg-[#252525] rounded-full p-1 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            variant="ghost"
+            size="icon"
+            className="hover:bg-[#fafafa] dark:hover:bg-[#252525] rounded-full size-6 p-1 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
           >
             <Plus className="size-4 text-[#364153] dark:text-[#a0aec0]" />
-          </button>
+          </Button>
         </div>
 
         {/* Reset Button */}
-        <button 
+        <Button
           onClick={onReset}
-          className="bg-white dark:bg-[#1c1c1c] border border-[#e5e7eb] dark:border-[#2a2a2a] hover:bg-[#fafafa] dark:hover:bg-[#252525] rounded-full px-3.5 py-1.5 cursor-pointer text-center transition-all duration-200 shadow-xs active:scale-[0.98]"
+          variant="outline"
+          className="bg-white dark:bg-[#1c1c1c] border border-[#e5e7eb] dark:border-[#2a2a2a] hover:bg-[#fafafa] dark:hover:bg-[#252525] rounded-full h-auto px-3.5 py-1.5 cursor-pointer text-center transition-all duration-200 shadow-xs active:scale-[0.98]"
           data-node-id="3603:12064"
         >
           <span className="font-['Satoshi'] font-medium text-[14px] leading-[20px] text-[#364153] dark:text-[#cbd5e1]">
             Reset
           </span>
-        </button>
+        </Button>
 
         {/* Create Dropdown Button */}
-        <button 
+        <Button
           onClick={onCreateJob}
-          className="bg-[#2563eb] hover:bg-[#1d4ed8] text-white rounded-full px-3.5 py-1.5 flex gap-1.5 items-center cursor-pointer transition-all duration-200 shadow-sm active:scale-[0.98] border border-transparent font-medium"
+          className="bg-[#2563eb] hover:bg-[#1d4ed8] text-white rounded-full h-auto px-3.5 py-1.5 flex gap-1.5 items-center cursor-pointer transition-all duration-200 shadow-sm active:scale-[0.98] border border-transparent font-medium"
           data-node-id="3603:12065"
         >
           <Plus className="size-4 text-white" />
@@ -209,12 +235,13 @@ export const TimelineControlsHeader: React.FC<TimelineControlsHeaderProps> = ({
             Create
           </span>
           <ChevronDown className="size-4 text-white/80" />
-        </button>
+        </Button>
 
         {/* Theme Button */}
-        <button 
+        <Button
           onClick={onThemeToggle}
-          className="bg-white dark:bg-[#1c1c1c] border border-[#e5e7eb] dark:border-[#2a2a2a] hover:bg-[#fafafa] dark:hover:bg-[#252525] rounded-full px-3.5 py-1.5 flex gap-1.5 items-center cursor-pointer transition-all duration-200 shadow-xs active:scale-[0.98]"
+          variant="outline"
+          className="bg-white dark:bg-[#1c1c1c] border border-[#e5e7eb] dark:border-[#2a2a2a] hover:bg-[#fafafa] dark:hover:bg-[#252525] rounded-full h-auto px-3.5 py-1.5 flex gap-1.5 items-center cursor-pointer transition-all duration-200 shadow-xs active:scale-[0.98]"
           data-node-id="3603:12066"
         >
           {theme === 'light' ? (
@@ -233,8 +260,9 @@ export const TimelineControlsHeader: React.FC<TimelineControlsHeaderProps> = ({
             </>
           )}
           <ChevronDown className="size-4 text-[#364153] dark:text-[#a0aec0]" />
-        </button>
+        </Button>
       </div>
     </div>
   );
 };
+
