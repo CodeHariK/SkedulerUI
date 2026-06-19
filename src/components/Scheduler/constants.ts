@@ -10,7 +10,7 @@ export const STATUS_COLORS = {
 export const LAYOUT_CONSTANTS = {
   HEADER_OFFSET: 56,
   ROW_MIN_HEIGHT: 140,
-  LANE_HEIGHT: 95,
+  LANE_HEIGHT: 85,
   LANE_OFFSET: 30,
 } as const;
 
