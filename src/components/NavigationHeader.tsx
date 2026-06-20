@@ -36,17 +36,45 @@ export const NavigationHeader: React.FC<NavigationHeaderProps> = ({
     { name: 'Pricing', icon: Receipt },
   ];
 
+  const isReactActive = typeof window !== 'undefined' && !window.location.pathname.includes('/solid/');
+
   return (
     <header className="w-full bg-white dark:bg-[#141414] border-b border-border h-[53px] flex items-center justify-between px-5 sticky top-0 z-50">
       {/* Left Section: Logo & Navigation */}
-      <div className="flex items-center gap-10 h-full">
+      <div className="flex items-center gap-6 h-full">
         {/* Skeduler Brand Logo */}
         <div className="flex items-center cursor-pointer select-none">
           <img src="/SkedulerUI/logo.svg" alt="Skeduler Logo" className="h-5 w-auto object-contain" />
         </div>
 
+        {/* Framework Switcher */}
+        <div className="flex items-center gap-1 bg-slate-100 dark:bg-zinc-800 p-0.5 rounded-lg border border-border">
+          <a
+            href="/SkedulerUI/"
+            className={cn(
+              "px-2.5 py-1 text-xs font-semibold rounded-md transition-all",
+              isReactActive
+                ? "bg-white dark:bg-zinc-700 shadow-sm text-[#2563eb] dark:text-blue-400 font-bold"
+                : "text-text-secondary hover:text-text-primary"
+            )}
+          >
+            React
+          </a>
+          <a
+            href="/SkedulerUI/solid/"
+            className={cn(
+              "px-2.5 py-1 text-xs font-semibold rounded-md transition-all",
+              !isReactActive
+                ? "bg-white dark:bg-zinc-700 shadow-sm text-[#2563eb] dark:text-blue-400 font-bold"
+                : "text-text-secondary hover:text-text-primary"
+            )}
+          >
+            SolidJS
+          </a>
+        </div>
+
         {/* Navigation Items */}
-        <nav className="flex items-center h-full">
+        <nav className="flex items-center h-full gap-1">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.name;
@@ -74,13 +102,6 @@ export const NavigationHeader: React.FC<NavigationHeaderProps> = ({
       <div className="flex items-center gap-2">
         {/* Action Buttons */}
         <div className="flex items-center gap-1">
-          <a
-            href="/SkedulerUI/solid/"
-            className="text-xs font-semibold px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 dark:bg-indigo-950/30 dark:hover:bg-indigo-950/50 dark:text-indigo-400 rounded-md transition-colors mr-2 flex items-center gap-1.5"
-          >
-            <Activity className="w-3.5 h-3.5" />
-            <span>SolidJS Version (No Virtual)</span>
-          </a>
           <button className="p-2 text-text-secondary hover:text-text-primary hover:bg-muted/30 rounded-lg transition-colors">
             <Search className="w-4 h-4" />
           </button>

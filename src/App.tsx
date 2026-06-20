@@ -14,12 +14,14 @@ function App() {
     return { schedulerResources: resources, schedulerEvents: events };
   }, []);
 
-  // Generate stress test data with 200 resources and associated events.
-  // Memoized so it doesn't regenerate on every render.
+  const [stressRowCount, setStressRowCount] = useState(800);
+
+  // Generate stress test data with dynamic resources and associated events.
+  // Memoized so it doesn't regenerate on every render unless stressRowCount changes.
   const { stressResources, stressEvents } = useMemo(() => {
-    const { resources, events } = generateStressTestData(800);
+    const { resources, events } = generateStressTestData(stressRowCount);
     return { stressResources: resources, stressEvents: events };
-  }, []);
+  }, [stressRowCount]);
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col font-sans">
@@ -42,9 +44,24 @@ function App() {
         ) : activeTab === 'Stress Test' ? (
           <div className="flex-1 flex flex-col overflow-hidden relative">
             <div className="bg-amber-50 dark:bg-amber-950/20 border-b border-amber-200 dark:border-amber-900/40 px-6 py-2 text-xs text-amber-800 dark:text-amber-300 flex items-center justify-between z-10 shrink-0">
-              <div className="flex items-center gap-2">
-                <span className="inline-block w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-                <span><strong>Stress Test Mode:</strong> Rendering <strong>{stressResources.length}</strong> virtualized resources and <strong>{stressEvents.length}</strong> events smoothly.</span>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <span className="inline-block w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                  <span><strong>Stress Test Mode:</strong> Rendering <strong>{stressResources.length}</strong> resources and <strong>{stressEvents.length}</strong> events smoothly.</span>
+                </div>
+                <div className="flex items-center gap-1.5 ml-4">
+                  <label htmlFor="stress-rows-select" className="font-semibold text-amber-950 dark:text-amber-200">Resources:</label>
+                  <select
+                    id="stress-rows-select"
+                    value={stressRowCount}
+                    onChange={(e) => setStressRowCount(Number(e.target.value))}
+                    className="bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-800 rounded px-2 py-0.5 text-xs font-semibold focus:outline-none"
+                  >
+                    {[200, 400, 800, 1000, 1200, 1500, 2000].map(count => (
+                      <option key={count} value={count}>{count} Rows</option>
+                    ))}
+                  </select>
+                </div>
               </div>
               <span className="font-mono text-[10px] bg-amber-100 dark:bg-amber-900/50 px-2 py-0.5 rounded">
                 React-Virtual Enabled

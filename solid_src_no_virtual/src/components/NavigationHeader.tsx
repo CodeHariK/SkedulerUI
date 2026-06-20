@@ -36,17 +36,45 @@ export const NavigationHeader: Component<NavigationHeaderProps> = (rawProps) => 
     { name: 'Pricing', icon: Receipt },
   ];
 
+  const isReactActive = typeof window !== 'undefined' && !window.location.pathname.includes('/solid/');
+
   return (
     <header class="w-full bg-white dark:bg-[#141414] border-b border-border h-[53px] flex items-center justify-between px-5 sticky top-0 z-50">
       {/* Left Section: Logo & Navigation */}
-      <div class="flex items-center gap-10 h-full">
+      <div class="flex items-center gap-6 h-full">
         {/* Skeduler Brand Logo */}
         <div class="flex items-center cursor-pointer select-none">
           <img src="/SkedulerUI/logo.svg" alt="Skeduler Logo" class="h-5 w-auto object-contain" />
         </div>
 
+        {/* Framework Switcher */}
+        <div class="flex items-center gap-1 bg-slate-100 dark:bg-zinc-800 p-0.5 rounded-lg border border-border">
+          <a
+            href="/SkedulerUI/"
+            class={cn(
+              "px-2.5 py-1 text-xs font-semibold rounded-md transition-all",
+              isReactActive
+                ? "bg-white dark:bg-zinc-700 shadow-sm text-[#2563eb] dark:text-blue-400 font-bold"
+                : "text-text-secondary hover:text-text-primary"
+            )}
+          >
+            React
+          </a>
+          <a
+            href="/SkedulerUI/solid/"
+            class={cn(
+              "px-2.5 py-1 text-xs font-semibold rounded-md transition-all",
+              !isReactActive
+                ? "bg-white dark:bg-zinc-700 shadow-sm text-[#2563eb] dark:text-blue-400 font-bold"
+                : "text-text-secondary hover:text-text-primary"
+            )}
+          >
+            SolidJS
+          </a>
+        </div>
+
         {/* Navigation Items */}
-        <nav class="flex items-center h-full">
+        <nav class="flex items-center h-full gap-1">
           {/* 2. <For> is Solid's highly optimized array renderer */}
           <For each={navItems}>
             {(item) => {
@@ -76,13 +104,6 @@ export const NavigationHeader: Component<NavigationHeaderProps> = (rawProps) => 
       <div class="flex items-center gap-2">
         {/* Action Buttons */}
         <div class="flex items-center gap-1">
-          <a
-            href="/SkedulerUI/"
-            class="text-xs font-semibold px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 dark:bg-blue-950/30 dark:hover:bg-blue-950/50 dark:text-blue-400 rounded-md transition-colors mr-2 flex items-center gap-1.5"
-          >
-            <Activity class="w-3.5 h-3.5" />
-            <span>React Version (Virtualized)</span>
-          </a>
           <button class="p-2 text-text-secondary hover:text-text-primary hover:bg-muted/30 rounded-lg transition-colors">
             <Search class="w-4 h-4" />
           </button>
