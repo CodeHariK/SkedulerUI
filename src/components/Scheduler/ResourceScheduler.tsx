@@ -177,9 +177,10 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
   }, [localEvents, currentDate]);
 
   const layoutEngine = useMemo(() => {
+    const t0 = performance.now(); // START TIMER
+
     const rowHeights: Record<string, number> = {};
     const eventLanes: Record<string, number> = {};
-    // FIXED: Compute date grids exactly once per state change, eliminating math from the render loop
     const eventSpans: Record<string, { gridColumnStart: number, gridColumnEnd: number }> = {};
     const eventsByResource: Record<string, EventItem[]> = {};
 
@@ -213,8 +214,11 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
       rowHeights[resource.id] = Math.max(LAYOUT_CONSTANTS.ROW_MIN_HEIGHT, lanes.length * LAYOUT_CONSTANTS.LANE_HEIGHT + LAYOUT_CONSTANTS.LANE_OFFSET);
     });
 
+    const t1 = performance.now(); // END TIMER
+    console.log(`⏱️ layoutEngine Calculation: ${(t1 - t0).toFixed(2)}ms for ${localEvents.length} events`);
+
     return { rowHeights, eventLanes, eventSpans, eventsByResource };
-  }, [localResources, dailyEvents, dayStartHour, totalHours, slotsPerHour]);
+  }, [localResources, localEvents, dayStartHour, totalHours, slotsPerHour]);
 
   const estimateSize = useCallback((index: number) => {
     const resource = localResources[index];
@@ -362,23 +366,31 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
     const scrollContainerEl = scrollContainerRef.current;
     if (!gridEl || !scrollContainerEl) return;
 
+    // We only want to profile the heavy dragging/resizing work
+    if (activeModeRef.current !== 'RESIZING_CARD' && activeModeRef.current !== 'DRAGGING_CARD' && activeModeRef.current !== 'DRAGGING_ROW') {
+      return;
+    }
+
+    const t0 = performance.now(); // START TIMER
+
     if (activeModeRef.current === 'RESIZING_CARD' && interaction) {
       const currentSlot = Math.max(0, Math.floor((e.clientX - metricsRef.current.gridLeft + gridEl.scrollLeft) / activeSlotWidthRef.current));
-      if (lastInteractionRef.current?.slot === currentSlot) return;
-      lastInteractionRef.current = { slot: currentSlot };
+      if (lastInteractionRef.current?.slot !== currentSlot) {
+        lastInteractionRef.current = { slot: currentSlot };
 
-      if (interaction.resizeDirection === 'left') {
-        setResizeIndicator({
-          eventId: interaction.eventId,
-          startCol: Math.max(0, Math.min(interaction.startColEnd - 1, currentSlot)),
-          endCol: interaction.startColEnd
-        });
-      } else {
-        setResizeIndicator({
-          eventId: interaction.eventId,
-          startCol: interaction.startColStart,
-          endCol: Math.max(interaction.startColStart + 1, Math.min(totalSlots, currentSlot))
-        });
+        if (interaction.resizeDirection === 'left') {
+          setResizeIndicator({
+            eventId: interaction.eventId,
+            startCol: Math.max(0, Math.min(interaction.startColEnd - 1, currentSlot)),
+            endCol: interaction.startColEnd
+          });
+        } else {
+          setResizeIndicator({
+            eventId: interaction.eventId,
+            startCol: interaction.startColStart,
+            endCol: Math.max(interaction.startColStart + 1, Math.min(totalSlots, currentSlot))
+          });
+        }
       }
     } else if (activeModeRef.current === 'DRAGGING_CARD' && interaction) {
       const scrollDeltaX = scrollContainerEl.scrollLeft - interaction.startScrollLeft;
@@ -392,7 +404,7 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
 
       let targetResource: Resource;
 
-      if (canChangeRows && scrollContainerEl) {
+      if (canChangeRows) {
         const gridY = (e.clientY - metricsRef.current.containerTop + scrollContainerEl.scrollTop) - LAYOUT_CONSTANTS.HEADER_OFFSET;
         let targetRowIdx = localResources.length - 1;
         const found = virtualRows.find(item => gridY >= item.start && gridY <= (item.start + item.size));
@@ -409,37 +421,43 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
       const durationSlots = interaction.startColEnd - interaction.startColStart;
       const newStartSlot = Math.max(0, Math.min(totalSlots - durationSlots, interaction.startColStart + deltaSlots));
 
-      if (lastInteractionRef.current?.slot === newStartSlot && lastInteractionRef.current?.resourceId === targetResource.id) return;
-      lastInteractionRef.current = { slot: newStartSlot, resourceId: targetResource.id };
-
-      setDropIndicator({ resourceId: targetResource.id, startCol: newStartSlot, endCol: newStartSlot + durationSlots });
+      if (lastInteractionRef.current?.slot !== newStartSlot || lastInteractionRef.current?.resourceId !== targetResource.id) {
+        lastInteractionRef.current = { slot: newStartSlot, resourceId: targetResource.id };
+        setDropIndicator({ resourceId: targetResource.id, startCol: newStartSlot, endCol: newStartSlot + durationSlots });
+      }
 
     } else if (activeModeRef.current === 'DRAGGING_ROW' && rowDrag) {
+      // 1. Calculate how far the mouse has moved since the drag started
       const scrollDeltaY = scrollContainerEl.scrollTop - rowDrag.startScrollTop;
       const translateY = (e.clientY - rowDrag.startY) + scrollDeltaY;
 
+      // 2. Visually float the dragged row (Zero React State)
       if (draggedSidebarRowRef.current) draggedSidebarRowRef.current.style.transform = `translate3d(0, ${translateY}px, 0)`;
       if (draggedGridRowRef.current) draggedGridRowRef.current.style.transform = `translate3d(0, ${translateY}px, 0)`;
 
+      // 3. Determine which row we are currently hovering over
       const gridY = (e.clientY - metricsRef.current.containerTop + scrollContainerEl.scrollTop) - LAYOUT_CONSTANTS.HEADER_OFFSET;
 
       let newIndex = localResources.length - 1;
       const found = virtualRows.find(item => gridY >= item.start && gridY <= (item.start + item.size));
       if (found) newIndex = found.index;
-
       newIndex = Math.max(0, Math.min(localResources.length - 1, newIndex));
 
+      // 4. Update ONLY the lightweight drop indicator line state
       if (lastInteractionRef.current?.slot !== newIndex) {
         lastInteractionRef.current = { slot: newIndex };
         setRowDropIndicator(newIndex);
       }
-
-    } else if (activeModeRef.current === 'SELECTING_SLOT' && selection) {
-      const slotIdx = Math.max(0, Math.min(totalSlots, Math.floor((e.clientX - metricsRef.current.gridLeft + gridEl.scrollLeft) / activeSlotWidthRef.current)));
-      if (lastInteractionRef.current?.slot === slotIdx) return;
-      lastInteractionRef.current = { slot: slotIdx };
-      setSelection(prev => prev ? { ...prev, currentSlot: slotIdx } : null);
     }
+
+    const t1 = performance.now(); // END TIMER
+    const duration = t1 - t0;
+
+    // Log if the pointer move calculation takes longer than 8ms (threatening 60FPS)
+    if (duration > 8) {
+      console.warn(`⚠️ Slow PointerMove (${activeModeRef.current}): ${duration.toFixed(2)}ms`);
+    }
+
   }, [interaction, rowDrag, selection, localResources, totalSlots, virtualRows, canChangeRows]);
 
   const handlePointerUp = useCallback((e: React.PointerEvent) => {
@@ -450,7 +468,7 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
           const newResourceId = dropIndicator.resourceId;
           const newStartTime = slotToDate(dropIndicator.startCol, currentDate, dayStartHour, slotsPerHour);
           const newEndTime = slotToDate(dropIndicator.endCol, currentDate, dayStartHour, slotsPerHour);
-          
+
           const hasChanged = finalEvent.resourceId !== newResourceId ||
             finalEvent.startTime.getTime() !== newStartTime.getTime() ||
             finalEvent.endTime.getTime() !== newEndTime.getTime();
@@ -464,7 +482,7 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
             };
             setLocalEvents(prev => prev.map(evt => evt.id === interaction.eventId ? updatedEvent : evt));
             if (onEventChange) onEventChange(updatedEvent);
-            
+
             if (onSaveEvent) {
               onSaveEvent(updatedEvent);
             }
@@ -480,7 +498,7 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
         if (finalEvent) {
           const newStartTime = slotToDate(resizeIndicator.startCol, currentDate, dayStartHour, slotsPerHour);
           const newEndTime = slotToDate(resizeIndicator.endCol, currentDate, dayStartHour, slotsPerHour);
-          
+
           const hasChanged = finalEvent.startTime.getTime() !== newStartTime.getTime() ||
             finalEvent.endTime.getTime() !== newEndTime.getTime();
 
@@ -492,7 +510,7 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
             };
             setLocalEvents(prev => prev.map(evt => evt.id === interaction.eventId ? updatedEvent : evt));
             if (onEventChange) onEventChange(updatedEvent);
-            
+
             if (onSaveEvent) {
               onSaveEvent(updatedEvent);
             }
@@ -502,17 +520,29 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
       setInteraction(null);
       setResizeIndicator(null);
     } else if (activeModeRef.current === 'DRAGGING_ROW') {
+
+      // 1. Apply the final array mutation ONLY on drop
       if (rowDrag && rowDropIndicator !== null && rowDropIndicator !== rowDrag.currentIndex) {
         const reordered = [...localResources];
         const [draggedItem] = reordered.splice(rowDrag.currentIndex, 1);
-        reordered.splice(rowDropIndicator, 0, draggedItem);
+
+        // If we are dropping it further down the list, we need to adjust the insertion index
+        const insertIndex = rowDropIndicator > rowDrag.currentIndex
+          ? rowDropIndicator - 1
+          : rowDropIndicator;
+
+        reordered.splice(insertIndex, 0, draggedItem);
+
+        // This single state update triggers the layout engine exactly ONCE at the end of the gesture
         setLocalResources(reordered);
         if (onResourcesReorder) onResourcesReorder(reordered);
       }
 
-      if (draggedSidebarRowRef.current) draggedSidebarRowRef.current.style.transform = 'translate3d(0, 0, 0)';
-      if (draggedGridRowRef.current) draggedGridRowRef.current.style.transform = 'translate3d(0, 0, 0)';
+      // 2. Clear the GPU transforms
+      if (draggedSidebarRowRef.current) draggedSidebarRowRef.current.style.transform = '';
+      if (draggedGridRowRef.current) draggedGridRowRef.current.style.transform = '';
 
+      // 3. Clear the states
       setRowDrag(null);
       setRowDropIndicator(null);
     } else if (activeModeRef.current === 'SELECTING_SLOT' && selection) {
