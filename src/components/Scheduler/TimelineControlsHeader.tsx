@@ -62,7 +62,7 @@ export const TimelineControlsHeader: React.FC<TimelineControlsHeaderProps> = Rea
   };
 
   const handleToday = () => {
-    onDateChange(new Date('2026-06-18')); // keeping standard mockDate consistent
+    onDateChange(new Date(2026, 5, 18)); // keeping standard mockDate consistent
   };
 
   const increaseZoom = () => {

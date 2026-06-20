@@ -1,13 +1,20 @@
 import { useState, useMemo } from 'react';
 import { NavigationHeader } from './components/NavigationHeader';
 import { ResourceScheduler } from './components/Scheduler/ResourceScheduler';
-import { mockResources, mockEvents } from './components/Scheduler/mockData';
-import { generateStressTestData } from './components/Scheduler/stressMockData';
+import { generateStressTestData } from '@/lib/stressMockData';
+import { fetchSchedulerDataByDate, saveEventToDatabase } from '@/lib/schedulerService';
+import { Toaster } from '@/components/ui/sonner';
 
 function App() {
   const [activeTab, setActiveTab] = useState('Scheduler');
 
-  // Generate stress test data with 1000 resources and associated events.
+  // Generate default scheduler data with 8 resources (between 5 and 10).
+  const { schedulerResources, schedulerEvents } = useMemo(() => {
+    const { resources, events } = generateStressTestData(8);
+    return { schedulerResources: resources, schedulerEvents: events };
+  }, []);
+
+  // Generate stress test data with 200 resources and associated events.
   // Memoized so it doesn't regenerate on every render.
   const { stressResources, stressEvents } = useMemo(() => {
     const { resources, events } = generateStressTestData(200);
@@ -16,6 +23,7 @@ function App() {
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col font-sans">
+      <Toaster position="bottom-right" />
       {/* Navigation Header */}
       <NavigationHeader activeTab={activeTab} onTabChange={setActiveTab} />
 
@@ -23,11 +31,13 @@ function App() {
       <main className="flex-1 flex flex-col overflow-hidden w-full">
         {activeTab === 'Scheduler' ? (
           <ResourceScheduler
-            resources={mockResources}
-            events={mockEvents}
+            resources={schedulerResources}
+            events={schedulerEvents}
             dayStartHour={6}
             dayEndHour={20}
             canChangeRows={true}
+            fetchEventsForDate={fetchSchedulerDataByDate}
+            onSaveEvent={saveEventToDatabase}
           />
         ) : activeTab === 'Stress Test' ? (
           <div className="flex-1 flex flex-col overflow-hidden relative">
@@ -47,6 +57,8 @@ function App() {
                 dayStartHour={6}
                 dayEndHour={20}
                 canChangeRows={true}
+                fetchEventsForDate={fetchSchedulerDataByDate}
+                onSaveEvent={saveEventToDatabase}
               />
             </div>
           </div>

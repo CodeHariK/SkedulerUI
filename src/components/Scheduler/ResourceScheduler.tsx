@@ -6,7 +6,6 @@ import { TimelineGrid } from './TimelineGrid';
 import { JobCreationDialog } from './JobCreationDialog';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { LAYOUT_CONSTANTS } from './constants';
-
 const areResourcesDifferent = (a: Resource[], b: Resource[]) => {
   if (a.length !== b.length) return true;
   for (let i = 0; i < a.length; i++) {
@@ -66,14 +65,16 @@ export interface ResourceSchedulerProps {
   canChangeRows?: boolean;
   renderResource?: (resource: Resource, onGripMouseDown?: (e: React.PointerEvent) => void) => React.ReactNode;
   renderEvent?: (event: EventItem, onDragStart?: (e: React.PointerEvent, eventId: string) => void, onResizeStart?: (e: React.PointerEvent, eventId: string, direction: 'left' | 'right') => void) => React.ReactNode;
-  onEventChange?: (event: EventItem) => void;
+  onEventChange?: (event: EventItem) => Promise<any> | void;
   onEventAdd?: (event: EventItem) => void;
   onResourcesReorder?: (resources: Resource[]) => void;
+  fetchEventsForDate: (resourceCount: number, date: Date) => Promise<{ resources: Resource[]; events: EventItem[] }>;
+  onSaveEvent?: (event: EventItem) => Promise<any>;
 }
 
 export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
   resources, events, dayStartHour = 6, dayEndHour = 20, canChangeRows = true,
-  renderResource, renderEvent, onEventChange, onEventAdd, onResourcesReorder
+  renderResource, renderEvent, onEventChange, onEventAdd, onResourcesReorder, fetchEventsForDate, onSaveEvent
 }) => {
   const gridRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -94,7 +95,7 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
   const lastResourcesPropRef = useRef<Resource[]>(resources);
   const lastEventsPropRef = useRef<EventItem[]>(events);
 
-  const [currentDate, setCurrentDate] = useState<Date>(new Date('2026-06-18'));
+  const [currentDate, setCurrentDate] = useState<Date>(new Date(2026, 5, 18));
   const [zoomMinutes, setZoomMinutes] = useState<number>(60);
   const [isMapViewActive, setIsMapViewActive] = useState<boolean>(false);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
@@ -135,12 +136,45 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
 
   useEffect(() => { checkAndSyncProps(); }, [resources, events, checkAndSyncProps]);
 
+  // Dynamically generate events for currentDate if none exist yet
+  useEffect(() => {
+    let active = true;
+    const hasEventsForDate = localEvents.some(e => {
+      const d = e.startTime;
+      return d.getFullYear() === currentDate.getFullYear() &&
+        d.getMonth() === currentDate.getMonth() &&
+        d.getDate() === currentDate.getDate();
+    });
+
+    if (!hasEventsForDate && localResources.length > 0) {
+      fetchEventsForDate(localResources.length, currentDate).then(({ events: newEvents }) => {
+        if (active) {
+          setLocalEvents(prev => [...prev, ...newEvents]);
+        }
+      });
+    }
+
+    return () => {
+      active = false;
+    };
+  }, [currentDate, localResources.length, localEvents, fetchEventsForDate]);
+
   const slotsPerHour = 4;
   const totalHours = useMemo(() => dayEndHour - dayStartHour, [dayEndHour, dayStartHour]);
   const totalSlots = useMemo(() => totalHours * slotsPerHour, [totalHours]);
   const hourWidth = useMemo(() => getHourWidth(zoomMinutes), [zoomMinutes]);
   const totalWidth = useMemo(() => totalHours * hourWidth, [totalHours, hourWidth]);
   const hours = useMemo(() => Array.from({ length: totalHours }, (_, i) => dayStartHour + i), [totalHours, dayStartHour]);
+
+  // Filter events to only show those scheduled on the current date
+  const dailyEvents = useMemo(() => {
+    return localEvents.filter(e => {
+      const d = e.startTime;
+      return d.getFullYear() === currentDate.getFullYear() &&
+        d.getMonth() === currentDate.getMonth() &&
+        d.getDate() === currentDate.getDate();
+    });
+  }, [localEvents, currentDate]);
 
   const layoutEngine = useMemo(() => {
     const rowHeights: Record<string, number> = {};
@@ -150,7 +184,7 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
     const eventsByResource: Record<string, EventItem[]> = {};
 
     localResources.forEach(r => { eventsByResource[r.id] = []; rowHeights[r.id] = LAYOUT_CONSTANTS.ROW_MIN_HEIGHT; });
-    localEvents.forEach(e => { if (eventsByResource[e.resourceId]) eventsByResource[e.resourceId].push(e); });
+    dailyEvents.forEach(e => { if (eventsByResource[e.resourceId]) eventsByResource[e.resourceId].push(e); });
 
     localResources.forEach(resource => {
       const resourceEvents = eventsByResource[resource.id].sort((a, b) => {
@@ -180,7 +214,7 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
     });
 
     return { rowHeights, eventLanes, eventSpans, eventsByResource };
-  }, [localResources, localEvents, dayStartHour, totalHours, slotsPerHour]);
+  }, [localResources, dailyEvents, dayStartHour, totalHours, slotsPerHour]);
 
   const estimateSize = useCallback((index: number) => {
     const resource = localResources[index];
@@ -421,6 +455,10 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
           };
           setLocalEvents(prev => prev.map(evt => evt.id === interaction.eventId ? updatedEvent : evt));
           if (onEventChange) onEventChange(updatedEvent);
+          
+          if (onSaveEvent) {
+            onSaveEvent(updatedEvent);
+          }
         }
       }
       if (draggedElementRef.current) draggedElementRef.current.style.transform = 'translate3d(0, 0, 0)';
@@ -437,6 +475,10 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
           };
           setLocalEvents(prev => prev.map(evt => evt.id === interaction.eventId ? updatedEvent : evt));
           if (onEventChange) onEventChange(updatedEvent);
+          
+          if (onSaveEvent) {
+            onSaveEvent(updatedEvent);
+          }
         }
       }
       setInteraction(null);
@@ -491,7 +533,7 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
   }, [localResources, currentDate, dayStartHour, slotsPerHour]);
 
   const handleReset = useCallback(() => {
-    setCurrentDate(new Date('2026-06-18'));
+    setCurrentDate(new Date(2026, 5, 18));
     setZoomMinutes(60);
     setLocalResources(resources);
     setLocalEvents(events);

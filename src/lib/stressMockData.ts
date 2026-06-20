@@ -1,14 +1,19 @@
-import type { Resource, EventItem } from './types';
+import type { Resource, EventItem } from '@/components/Scheduler/types';
 
-export const generateStressTestData = (resourceCount: number = 1000) => {
+export const generateStressTestData = (resourceCount: number = 1000, baseDate: Date = new Date(2026, 5, 18)) => {
   const roles = ['PLUMBING', 'ELECTRICAL', 'HVAC', 'CARPENTRY', 'ROOFING', 'PAINTING', 'CLEANING'];
   const statuses: EventItem['status'][] = ['Ongoing', 'New', 'Completed', 'Cancelled'];
   const locations = ['North Sydney', 'Westmead', 'Faulkner Street', 'Asaro Street', 'Eastwood', 'Epping', 'Ryde'];
-  const firstNames = ['John', 'Jane', 'Michael', 'Emily', 'David', 'Sarah', 'James', 'Anna', 'Robert', 'Lisa', 'William', 'Karen'];
+  const firstNames = ['Michael', 'Emily', 'David', 'Sarah', 'James', 'Anna', 'Robert', 'Lisa', 'William', 'Karen'];
   const lastNames = ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller', 'Davis', 'Rodriguez', 'Martinez'];
 
   const resources: Resource[] = [];
   const events: EventItem[] = [];
+
+  const year = baseDate.getFullYear();
+  const month = String(baseDate.getMonth() + 1).padStart(2, '0');
+  const day = String(baseDate.getDate()).padStart(2, '0');
+  const dateStr = `${year}-${month}-${day}`;
 
   for (let i = 1; i <= resourceCount; i++) {
     const fn = firstNames[Math.floor(Math.random() * firstNames.length)];
@@ -32,7 +37,7 @@ export const generateStressTestData = (resourceCount: number = 1000) => {
     for (let j = 1; j <= eventCount; j++) {
       const status = statuses[Math.floor(Math.random() * statuses.length)];
       const location = locations[Math.floor(Math.random() * locations.length)];
-      
+
       // Let's schedule within 6:00 to 20:00.
       let startHour = 6;
       let durationHours = 2 + Math.random() * 3; // 2 to 5 hours
@@ -47,14 +52,14 @@ export const generateStressTestData = (resourceCount: number = 1000) => {
       const startHourDecimal = startHour + startMinutes / 60;
       const endHourDecimal = Math.min(20, startHourDecimal + durationHours);
 
-      const startTime = new Date('2026-06-18');
+      const startTime = new Date(baseDate);
       startTime.setHours(Math.floor(startHourDecimal), (startHourDecimal % 1) * 60, 0, 0);
 
-      const endTime = new Date('2026-06-18');
+      const endTime = new Date(baseDate);
       endTime.setHours(Math.floor(endHourDecimal), (endHourDecimal % 1) * 60, 0, 0);
 
       events.push({
-        id: `event-${i}-${j}`,
+        id: `event-${i}-${j}-${dateStr}`,
         resourceId: id,
         title: `${role} Service Call #${i}-${j}`,
         startTime,
