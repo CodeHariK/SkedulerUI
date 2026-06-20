@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useState } from 'react';
 import type { Resource, EventItem } from './types';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
