@@ -2,7 +2,6 @@ import React from 'react';
 import type { Resource } from './types';
 import { cn } from '@/lib/utils';
 import { Calendar, GripVertical } from 'lucide-react';
-
 import type { VirtualItem } from '@tanstack/react-virtual';
 
 interface ResourceSidebarProps {
@@ -17,14 +16,7 @@ interface ResourceSidebarProps {
 }
 
 export const ResourceSidebar: React.FC<ResourceSidebarProps> = React.memo(({
-  resources,
-  virtualRows,
-  totalSize,
-  rowDrag,
-  rowDropIndicator,
-  draggedSidebarRowRef,
-  startRowDrag,
-  renderResource,
+  resources, virtualRows, totalSize, rowDrag, rowDropIndicator, draggedSidebarRowRef, startRowDrag, renderResource,
 }) => {
   const defaultRenderResource = (resource: Resource, onGripMouseDown?: (e: React.PointerEvent) => void) => {
     const role = resource.metadata?.role || '';
@@ -32,15 +24,12 @@ export const ResourceSidebar: React.FC<ResourceSidebarProps> = React.memo(({
 
     return (
       <>
-        {/* Grip Icon */}
         <div
           className="text-muted-foreground/40 cursor-grab touch-none hover:text-text-primary rounded hover:bg-muted/50 transition-all duration-200 ease-in-out w-0 opacity-0 overflow-hidden group-hover:w-7 group-hover:opacity-100 flex items-center justify-center shrink-0"
           onPointerDown={onGripMouseDown}
         >
           <GripVertical className="size-4" />
         </div>
-
-        {/* Avatar */}
         <div className={cn(
           "flex items-center justify-center w-9 h-9 rounded-full font-bold text-sm border shrink-0",
           role === 'ELECTRICAL' && "bg-[#FEF6F5] text-[#CF4523] border-[#FCDFD4]",
@@ -51,7 +40,6 @@ export const ResourceSidebar: React.FC<ResourceSidebarProps> = React.memo(({
         )}>
           {resource.avatar || resource.name.slice(0, 2).toUpperCase()}
         </div>
-
         <div className="flex-1 min-w-0">
           <h3 className="font-semibold text-text-primary text-sm truncate">{resource.name}</h3>
           <div className="flex items-center gap-1.5 mt-1 flex-nowrap overflow-hidden">
@@ -68,49 +56,54 @@ export const ResourceSidebar: React.FC<ResourceSidebarProps> = React.memo(({
 
   return (
     <div className="w-[240px] flex-shrink-0 border-r border-border bg-card z-10 select-none">
-      {/* Header Spacer */}
       <div className="h-14 flex items-center px-6 border-b border-border bg-card sticky top-0 z-30">
         <span className="text-[10px] font-bold tracking-wider text-text-tertiary uppercase">TECHNICIANS</span>
       </div>
 
-      {/* Resource list items */}
       <div style={{ height: `${totalSize}px`, width: '100%', position: 'relative' }}>
         {virtualRows.map((virtualRow) => {
           const resource = resources[virtualRow.index];
           if (!resource) return null;
 
           const isDraggingRow = rowDrag?.resourceId === resource.id;
+          const bgEvenOdd = virtualRow.index % 2 === 0 ? 'var(--row-bg-even)' : 'var(--row-bg-odd)';
 
           return (
             <div
               key={virtualRow.key}
               style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                width: '100%',
+                position: 'absolute', top: 0, left: 0, width: '100%',
                 height: `${virtualRow.size}px`,
                 transform: `translateY(${virtualRow.start}px)`,
+                zIndex: isDraggingRow ? 50 : 1 // The outer wrapper needs z-index 50 so the clone can float
               }}
             >
+              {/* THE STATIC PLACEHOLDER: Stays behind, slightly opaque, holding the space */}
               <div
-                ref={isDraggingRow ? draggedSidebarRowRef : null}
                 className={cn(
-                  "flex items-center gap-3 px-4 border-b border-border hover:bg-muted/10 transition-colors relative select-none group h-full",
-                  isDraggingRow && "opacity-90 border-primary/20 bg-primary/5 z-50 shadow-xl !transition-none"
+                  "flex items-center gap-3 px-4 border-b border-border relative select-none h-full",
+                  isDraggingRow ? "opacity-30 bg-muted grayscale" : "hover:bg-muted/10 transition-colors group"
                 )}
-                style={{
-                  backgroundColor: virtualRow.index % 2 === 0 ? 'var(--row-bg-even)' : 'var(--row-bg-odd)',
-                  zIndex: isDraggingRow ? 50 : 1,
-                  transform: isDraggingRow ? undefined : 'translate3d(0,0,0)'
-                }}
+                style={{ backgroundColor: isDraggingRow ? undefined : bgEvenOdd }}
               >
                 {renderResource
                   ? renderResource(resource, (e) => startRowDrag(e, resource.id))
                   : defaultRenderResource(resource, (e) => startRowDrag(e, resource.id))}
               </div>
 
-              {/* FIXED: Row Drop Insertion Line */}
+              {/* THE FLOATING CLONE: Rendered ONLY when this row is being dragged */}
+              {isDraggingRow && (
+                <div
+                  ref={draggedSidebarRowRef}
+                  className="flex items-center gap-3 px-4 border-b border-border select-none h-full absolute inset-0 opacity-100 border-primary/40 bg-primary/5 shadow-2xl !transition-none cursor-grabbing"
+                  style={{ backgroundColor: bgEvenOdd }}
+                >
+                  {renderResource
+                    ? renderResource(resource, () => { }) // Disable drag triggers on the clone
+                    : defaultRenderResource(resource, () => { })}
+                </div>
+              )}
+
               {rowDropIndicator === virtualRow.index && !isDraggingRow && rowDrag && (
                 <div
                   className="absolute left-0 right-0 h-0.5 bg-primary z-40 pointer-events-none"

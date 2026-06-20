@@ -45,6 +45,66 @@ export const TimelineGrid: React.FC<TimelineGridProps> = memo(({
   renderEvent, interactionEventId,
   virtualRows, totalSize, rowHeights, eventLanes, eventSpans, eventsByResource,
 }) => {
+
+  // Helper to render the inner content of a row (we need to call this twice for dragged rows)
+  const renderRowContent = (
+    resource: Resource, resourceEvents: EventItem[], isSelectedRow: boolean, isDropTargetRow: boolean,
+    startCol: number, endCol: number, isClone: boolean = false
+  ) => {
+    return (
+      <div className="absolute inset-0 grid content-center gap-y-2 px-2 pointer-events-none" style={{ gridTemplateColumns: `repeat(${totalSlots}, minmax(0, 1fr))` }}>
+        {isSelectedRow && !isClone && (
+          <div style={{ gridColumnStart: startCol + 1, gridColumnEnd: (startCol === endCol ? startCol + 4 : endCol) + 1, gridRowStart: 1, zIndex: 20 }}
+            className="bg-primary/15 border-2 border-dashed border-primary rounded-lg h-[85px] mx-1 backdrop-blur-[1px]" />
+        )}
+        {isDropTargetRow && dropIndicator && !isClone && (
+          <div style={{ gridColumnStart: dropIndicator.startCol + 1, gridColumnEnd: dropIndicator.endCol + 1, gridRowStart: 1, zIndex: 30 }}
+            className="bg-primary/20 border-2 border-dashed border-primary rounded-xl h-[85px] mx-1 backdrop-blur-[2px] shadow-sm" />
+        )}
+        {resourceEvents.map((event) => {
+          const { gridColumnStart, gridColumnEnd } = eventSpans[event.id] || { gridColumnStart: 1, gridColumnEnd: 1 };
+          const lane = eventLanes[event.id] || 1;
+          const isDraggingThis = interactionEventId === event.id && dropIndicator !== null;
+          const isResizingThis = interactionEventId === event.id && resizeIndicator !== null;
+          const resizeGhostStart = isResizingThis ? resizeIndicator!.startCol + 1 : gridColumnStart;
+          const resizeGhostEnd = isResizingThis ? resizeIndicator!.endCol + 1 : gridColumnEnd;
+
+          // If this is the static placeholder beneath a row drag, we don't need active drag transforms
+          const cardStyle: React.CSSProperties = {
+            gridColumnStart: isResizingThis ? resizeGhostStart : gridColumnStart,
+            gridColumnEnd: isResizingThis ? resizeGhostEnd : gridColumnEnd,
+            gridRowStart: lane,
+            zIndex: isDraggingThis || isResizingThis ? 50 : 10
+          };
+          if (!isDraggingThis || isClone) cardStyle.transform = 'translate3d(0, 0, 0)';
+
+          return (
+            <React.Fragment key={event.id}>
+              {isResizingThis && !isClone && (
+                <div style={{ gridColumnStart: resizeGhostStart, gridColumnEnd: resizeGhostEnd, gridRowStart: lane, zIndex: 30 }}
+                  className="bg-primary/20 border-2 border-dashed border-primary rounded-xl h-[85px] mx-1 backdrop-blur-[2px] shadow-sm" />
+              )}
+              <div
+                ref={isDraggingThis && !isClone ? draggedElementRef : null}
+                style={cardStyle}
+                className={cn("pointer-events-auto px-1 relative", isDraggingThis && "opacity-80 !transition-none", isResizingThis && "!transition-none")}
+              >
+                {renderEvent ? (
+                  renderEvent(event, (e) => startCardDrag(e, event.id), (e, _, direction) => startCardResize(e, event.id, direction))
+                ) : (
+                  <EventCard
+                    event={event} resource={resource} isDragging={isDraggingThis}
+                    onDragStart={startCardDrag} onResizeStart={startCardResize}
+                  />
+                )}
+              </div>
+            </React.Fragment>
+          );
+        })}
+      </div>
+    );
+  };
+
   return (
     <div
       ref={gridRef}
@@ -54,20 +114,14 @@ export const TimelineGrid: React.FC<TimelineGridProps> = memo(({
       style={{ scrollBehavior: isPanning ? 'auto' : 'smooth' }}
     >
       <div className="flex flex-col relative" style={{ width: `${totalWidth}px`, minWidth: '100%' }}>
-        {/* Hour Headers Row */}
-        <div className="h-14 border-b border-border flex items-center relative bg-card sticky top-0 z-50">
+        <div className="h-14 border-b border-border flex items-center relative bg-card sticky top-0 z-30">
           {hours.map((hour, idx) => (
-            <div
-              key={hour}
-              className="absolute text-[10px] font-semibold text-text-secondary border-l border-border/50 h-full flex items-center pl-3"
-              style={{ left: `${(idx / totalHours) * 100}%`, width: `${(1 / totalHours) * 100}%` }}
-            >
+            <div key={hour} className="absolute text-[10px] font-semibold text-text-secondary border-l border-border/50 h-full flex items-center pl-3" style={{ left: `${(idx / totalHours) * 100}%`, width: `${(1 / totalHours) * 100}%` }}>
               {formatHourLabel(hour)}
             </div>
           ))}
         </div>
 
-        {/* Grid Body */}
         <div className="flex flex-col relative">
           <div className="absolute inset-0 pointer-events-none flex z-[0]">
             {hours.map((hour, idx) => (
@@ -81,16 +135,14 @@ export const TimelineGrid: React.FC<TimelineGridProps> = memo(({
               if (!resource) return null;
 
               const resourceEvents = eventsByResource[resource.id] || [];
-
               const isDraggingRow = rowDrag?.resourceId === resource.id;
-              const isSelectedRow = selection && selection.resourceId === resource.id;
-              const isDropTargetRow = dropIndicator && dropIndicator.resourceId === resource.id;
-
-              // FIXED: Check if the card currently being dragged belongs to THIS specific row
+              const isSelectedRow = !!(selection && selection.resourceId === resource.id);
+              const isDropTargetRow = !!(dropIndicator && dropIndicator.resourceId === resource.id);
               const hasActiveCard = interactionEventId ? resourceEvents.some(e => e.id === interactionEventId) : false;
 
               const startCol = isSelectedRow ? Math.min(selection.startSlot, selection.currentSlot) : 0;
               const endCol = isSelectedRow ? Math.max(selection.startSlot, selection.currentSlot) : 0;
+              const bgEvenOdd = virtualRow.index % 2 === 0 ? 'var(--row-bg-even)' : 'var(--row-bg-odd)';
 
               return (
                 <div
@@ -101,100 +153,31 @@ export const TimelineGrid: React.FC<TimelineGridProps> = memo(({
                     top: 0, left: 0,
                     height: `${rowHeights[resource.id] || 140}px`,
                     transform: `translateY(${virtualRow.start}px)`,
-                    // FIXED: Elevate the ENTIRE ROW's Stacking Context to prevent clipping behind other rows
                     zIndex: isDraggingRow ? 50 : (hasActiveCard ? 40 : 1)
                   }}
                 >
+                  {/* THE STATIC PLACEHOLDER */}
                   <div
-                    ref={isDraggingRow ? draggedGridRowRef : null}
                     onPointerDown={(e) => handleRowPointerDown(e, resource.id)}
                     className={cn(
                       "border-b border-border absolute w-full h-full flex items-start transition-colors cursor-cell",
-                      isDraggingRow && "bg-primary/5 border-primary/20 shadow-xl !transition-none"
+                      isDraggingRow ? "opacity-30 bg-muted grayscale" : ""
                     )}
-                    style={{
-                      backgroundColor: virtualRow.index % 2 === 0 ? 'var(--row-bg-even)' : 'var(--row-bg-odd)',
-                      transform: isDraggingRow ? undefined : 'translate3d(0,0,0)'
-                    }}
+                    style={{ backgroundColor: isDraggingRow ? undefined : bgEvenOdd }}
                   >
-                    <div
-                      className="absolute inset-0 grid content-center gap-y-2 px-2 pointer-events-none"
-                      style={{ gridTemplateColumns: `repeat(${totalSlots}, minmax(0, 1fr))` }}
-                    >
-                      {/* Slot Selection Box */}
-                      {isSelectedRow && (
-                        <div
-                          style={{ gridColumnStart: startCol + 1, gridColumnEnd: (startCol === endCol ? startCol + 4 : endCol) + 1, gridRowStart: 1, zIndex: 20 }}
-                          className="bg-primary/15 border-2 border-dashed border-primary rounded-lg h-[85px] mx-1 backdrop-blur-[1px]"
-                        />
-                      )}
-
-                      {/* FIXED: Drag Drop Ghost -> Explicit zIndex 30 + Backdrop blur overrides resting cards */}
-                      {isDropTargetRow && dropIndicator && (
-                        <div
-                          style={{ gridColumnStart: dropIndicator.startCol + 1, gridColumnEnd: dropIndicator.endCol + 1, gridRowStart: 1, zIndex: 30 }}
-                          className="bg-primary/20 border-2 border-dashed border-primary rounded-xl h-[85px] mx-1 backdrop-blur-[2px] shadow-sm"
-                        />
-                      )}
-
-                      {resourceEvents.map((event) => {
-                        const { gridColumnStart, gridColumnEnd } = eventSpans[event.id] || { gridColumnStart: 1, gridColumnEnd: 1 };
-                        const lane = eventLanes[event.id] || 1;
-
-                        const isDraggingThis = interactionEventId === event.id && dropIndicator !== null;
-                        const isResizingThis = interactionEventId === event.id && resizeIndicator !== null;
-
-                        const resizeGhostStart = isResizingThis ? resizeIndicator!.startCol + 1 : gridColumnStart;
-                        const resizeGhostEnd = isResizingThis ? resizeIndicator!.endCol + 1 : gridColumnEnd;
-
-                        const cardStyle: React.CSSProperties = {
-                          gridColumnStart: isResizingThis ? resizeGhostStart : gridColumnStart,
-                          gridColumnEnd: isResizingThis ? resizeGhostEnd : gridColumnEnd,
-                          gridRowStart: lane,
-                          // Resting cards stay at zIndex 10 so ghosts render cleanly above them
-                          zIndex: isDraggingThis || isResizingThis ? 50 : 10
-                        };
-                        if (!isDraggingThis) {
-                          cardStyle.transform = 'translate3d(0, 0, 0)';
-                        }
-
-                        return (
-                          <React.Fragment key={event.id}>
-
-                            {/* FIXED: Resize Ghost -> Explicit zIndex 30 + Backdrop blur */}
-                            {isResizingThis && (
-                              <div
-                                style={{ gridColumnStart: resizeGhostStart, gridColumnEnd: resizeGhostEnd, gridRowStart: lane, zIndex: 30 }}
-                                className="bg-primary/20 border-2 border-dashed border-primary rounded-xl h-[85px] mx-1 backdrop-blur-[2px] shadow-sm"
-                              />
-                            )}
-
-                            <div
-                              ref={isDraggingThis ? draggedElementRef : null}
-                              style={cardStyle}
-                              className={cn(
-                                "pointer-events-auto px-1 relative",
-                                isDraggingThis && "opacity-80 !transition-none",
-                                isResizingThis && "!transition-none"
-                              )}
-                            >
-                              {renderEvent ? (
-                                renderEvent(event, (e) => startCardDrag(e, event.id), (e, _, direction) => startCardResize(e, event.id, direction))
-                              ) : (
-                                <EventCard
-                                  event={event}
-                                  resource={resource}
-                                  isDragging={isDraggingThis}
-                                  onDragStart={startCardDrag}
-                                  onResizeStart={startCardResize}
-                                />
-                              )}
-                            </div>
-                          </React.Fragment>
-                        );
-                      })}
-                    </div>
+                    {renderRowContent(resource, resourceEvents, isSelectedRow, isDropTargetRow, startCol, endCol, false)}
                   </div>
+
+                  {/* THE FLOATING CLONE */}
+                  {isDraggingRow && (
+                    <div
+                      ref={draggedGridRowRef}
+                      className="border-b border-border absolute w-full h-full flex items-start opacity-100 border-primary/40 bg-primary/5 shadow-2xl !transition-none pointer-events-none"
+                      style={{ backgroundColor: bgEvenOdd, zIndex: 50 }}
+                    >
+                      {renderRowContent(resource, resourceEvents, false, false, 0, 0, true)}
+                    </div>
+                  )}
 
                   {rowDropIndicator === virtualRow.index && !isDraggingRow && rowDrag && (
                     <div
