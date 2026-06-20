@@ -89,9 +89,9 @@ export const EventCard: React.FC<EventCardProps> = React.memo(({
           </div>
 
           <div>
-            <h4 className="font-bold text-text-primary text-xs truncate leading-snug">{event.title}</h4>
+            <h4 className="font-sans font-bold text-text-primary text-[12px] leading-[16px] truncate">{event.title}</h4>
             {location && (
-              <div className="flex items-center gap-1.5 text-[10px] text-text-secondary mt-0.5 min-w-0">
+              <div className="flex items-center gap-1.5 text-[12px] text-text-tertiary mt-0.5 min-w-0 font-roboto font-normal leading-normal">
                 <span className="truncate">{location}</span>
                 {isDispatched ? (
                   <Eye className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
@@ -112,8 +112,8 @@ export const EventCard: React.FC<EventCardProps> = React.memo(({
             >
               {event.status}
             </Badge>
-            <span className="text-[10px] font-bold text-text-primary shrink-0">${price}</span>
-            <span className="text-[10px] text-text-tertiary shrink-0 truncate">{formatFullTime(event.startTime, event.endTime)}</span>
+            <span className="text-[12px] font-bold text-text-primary shrink-0">${price}</span>
+            <span className="text-[12px] text-text-tertiary shrink-0 truncate">{formatFullTime(event.startTime, event.endTime)}</span>
           </div>
         </div>
       </PopoverTrigger>

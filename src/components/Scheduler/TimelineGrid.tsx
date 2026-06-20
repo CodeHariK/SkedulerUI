@@ -116,7 +116,7 @@ export const TimelineGrid: React.FC<TimelineGridProps> = memo(({
       <div className="flex flex-col relative" style={{ width: `${totalWidth}px`, minWidth: '100%' }}>
         <div className="h-14 border-b border-border flex items-center relative bg-card sticky top-0 z-30">
           {hours.map((hour, idx) => (
-            <div key={hour} className="absolute text-[10px] font-semibold text-text-secondary border-l border-border/50 h-full flex items-center pl-3" style={{ left: `${(idx / totalHours) * 100}%`, width: `${(1 / totalHours) * 100}%` }}>
+            <div key={hour} className="absolute text-[14px] font-medium text-text-secondary border-l border-border/50 h-full flex items-center pl-3" style={{ left: `${(idx / totalHours) * 100}%`, width: `${(1 / totalHours) * 100}%` }}>
               {formatHourLabel(hour)}
             </div>
           ))}

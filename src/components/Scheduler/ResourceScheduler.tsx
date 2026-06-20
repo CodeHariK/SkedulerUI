@@ -447,17 +447,27 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
       if (interaction && dropIndicator) {
         const finalEvent = localEvents.find(evt => evt.id === interaction.eventId);
         if (finalEvent) {
-          const updatedEvent = {
-            ...finalEvent,
-            resourceId: dropIndicator.resourceId,
-            startTime: slotToDate(dropIndicator.startCol, currentDate, dayStartHour, slotsPerHour),
-            endTime: slotToDate(dropIndicator.endCol, currentDate, dayStartHour, slotsPerHour)
-          };
-          setLocalEvents(prev => prev.map(evt => evt.id === interaction.eventId ? updatedEvent : evt));
-          if (onEventChange) onEventChange(updatedEvent);
+          const newResourceId = dropIndicator.resourceId;
+          const newStartTime = slotToDate(dropIndicator.startCol, currentDate, dayStartHour, slotsPerHour);
+          const newEndTime = slotToDate(dropIndicator.endCol, currentDate, dayStartHour, slotsPerHour);
           
-          if (onSaveEvent) {
-            onSaveEvent(updatedEvent);
+          const hasChanged = finalEvent.resourceId !== newResourceId ||
+            finalEvent.startTime.getTime() !== newStartTime.getTime() ||
+            finalEvent.endTime.getTime() !== newEndTime.getTime();
+
+          if (hasChanged) {
+            const updatedEvent = {
+              ...finalEvent,
+              resourceId: newResourceId,
+              startTime: newStartTime,
+              endTime: newEndTime
+            };
+            setLocalEvents(prev => prev.map(evt => evt.id === interaction.eventId ? updatedEvent : evt));
+            if (onEventChange) onEventChange(updatedEvent);
+            
+            if (onSaveEvent) {
+              onSaveEvent(updatedEvent);
+            }
           }
         }
       }
@@ -468,16 +478,24 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
       if (interaction && resizeIndicator) {
         const finalEvent = localEvents.find(evt => evt.id === interaction.eventId);
         if (finalEvent) {
-          const updatedEvent = {
-            ...finalEvent,
-            startTime: slotToDate(resizeIndicator.startCol, currentDate, dayStartHour, slotsPerHour),
-            endTime: slotToDate(resizeIndicator.endCol, currentDate, dayStartHour, slotsPerHour)
-          };
-          setLocalEvents(prev => prev.map(evt => evt.id === interaction.eventId ? updatedEvent : evt));
-          if (onEventChange) onEventChange(updatedEvent);
+          const newStartTime = slotToDate(resizeIndicator.startCol, currentDate, dayStartHour, slotsPerHour);
+          const newEndTime = slotToDate(resizeIndicator.endCol, currentDate, dayStartHour, slotsPerHour);
           
-          if (onSaveEvent) {
-            onSaveEvent(updatedEvent);
+          const hasChanged = finalEvent.startTime.getTime() !== newStartTime.getTime() ||
+            finalEvent.endTime.getTime() !== newEndTime.getTime();
+
+          if (hasChanged) {
+            const updatedEvent = {
+              ...finalEvent,
+              startTime: newStartTime,
+              endTime: newEndTime
+            };
+            setLocalEvents(prev => prev.map(evt => evt.id === interaction.eventId ? updatedEvent : evt));
+            if (onEventChange) onEventChange(updatedEvent);
+            
+            if (onSaveEvent) {
+              onSaveEvent(updatedEvent);
+            }
           }
         }
       }
