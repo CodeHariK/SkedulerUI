@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import type { Resource, EventItem } from './types';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
@@ -12,7 +12,6 @@ interface EventCardProps {
   event: EventItem;
   resource?: Resource;
   isDragging: boolean;
-  // FIXED: Changed signatures to accept eventId internally so we can pass stable refs
   onDragStart: (e: React.PointerEvent, eventId: string) => void;
   onResizeStart: (e: React.PointerEvent, eventId: string, direction: 'left' | 'right') => void;
 }
@@ -24,9 +23,11 @@ export const EventCard: React.FC<EventCardProps> = React.memo(({
   onDragStart,
   onResizeStart,
 }) => {
-  const dragStartPos = useRef({ x: 0, y: 0 });
   const location = event.metadata?.location || '';
   const price = event.metadata?.price || 0;
+
+  // NEW: Control the Popover state manually based on hover
+  const [isHovering, setIsHovering] = useState(false);
 
   const formatFullTime = (start: Date, end: Date) => {
     return `${start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} — ${end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
@@ -40,7 +41,11 @@ export const EventCard: React.FC<EventCardProps> = React.memo(({
   const isDispatched = getIsDispatched(event);
 
   return (
-    <Popover>
+    <Popover
+      // FIXED: Bind the Popover to our hover state, and forcefully close it if we are currently dragging
+      open={isHovering && !isDragging}
+      onOpenChange={setIsHovering}
+    >
       <PopoverTrigger asChild>
         <div
           className={cn(
@@ -50,18 +55,13 @@ export const EventCard: React.FC<EventCardProps> = React.memo(({
             borderClass,
             isDragging && "opacity-60 scale-[1.02] shadow-md border-primary/40 ring-1 ring-primary/20"
           )}
+          // FIXED: Use Pointer events to open/close the tooltip on hover
+          onPointerEnter={() => setIsHovering(true)}
+          onPointerLeave={() => setIsHovering(false)}
           onPointerDown={(e) => {
-            dragStartPos.current = { x: e.clientX, y: e.clientY };
-            // Pass the ID up from inside the memoized component
+            // Close the tooltip instantly the moment the user clicks down to drag
+            setIsHovering(false);
             onDragStart(e, event.id);
-          }}
-          onClickCapture={(e) => {
-            const dx = Math.abs(e.clientX - dragStartPos.current.x);
-            const dy = Math.abs(e.clientY - dragStartPos.current.y);
-            if (dx > 5 || dy > 5) {
-              e.preventDefault();
-              e.stopPropagation();
-            }
           }}
         >
           {/* Left Resize Handle Overlay */}
@@ -69,6 +69,7 @@ export const EventCard: React.FC<EventCardProps> = React.memo(({
             className="absolute left-0 top-0 w-2.5 h-full cursor-ew-resize z-20 flex items-center justify-start rounded-l-xl opacity-0 group-hover:opacity-100 transition-opacity"
             onPointerDown={(e) => {
               e.stopPropagation();
+              setIsHovering(false); // Close tooltip when interacting with handle
               onResizeStart(e, event.id, 'left');
             }}
           >
@@ -80,6 +81,7 @@ export const EventCard: React.FC<EventCardProps> = React.memo(({
             className="absolute right-0 top-0 w-2.5 h-full cursor-ew-resize z-20 flex items-center justify-end rounded-r-xl opacity-0 group-hover:opacity-100 transition-opacity"
             onPointerDown={(e) => {
               e.stopPropagation();
+              setIsHovering(false); // Close tooltip when interacting with handle
               onResizeStart(e, event.id, 'right');
             }}
           >
@@ -116,7 +118,15 @@ export const EventCard: React.FC<EventCardProps> = React.memo(({
         </div>
       </PopoverTrigger>
 
-      <EventDetailPopover event={event} resource={resource} />
+      {/* The PopoverContent receives mouse events by default, causing flickers if the cursor moves over the gap. 
+          We must wrap it in a custom class or inline style that forces pointer-events: auto so hovering the popover itself keeps it open. 
+          (Note: Radix Popover handles hover slightly better if you hover the content, but leaving it as-is works fine for tooltip behavior). */}
+      <div
+        onPointerEnter={() => setIsHovering(true)}
+        onPointerLeave={() => setIsHovering(false)}
+      >
+        <EventDetailPopover event={event} resource={resource} />
+      </div>
     </Popover>
   );
 });
