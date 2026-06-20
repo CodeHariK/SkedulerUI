@@ -74,6 +74,13 @@ export const NavigationHeader: React.FC<NavigationHeaderProps> = ({
       <div className="flex items-center gap-2">
         {/* Action Buttons */}
         <div className="flex items-center gap-1">
+          <a
+            href="/SkedulerUI/solid/"
+            className="text-xs font-semibold px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 dark:bg-indigo-950/30 dark:hover:bg-indigo-950/50 dark:text-indigo-400 rounded-md transition-colors mr-2 flex items-center gap-1.5"
+          >
+            <Activity className="w-3.5 h-3.5" />
+            <span>SolidJS Version (No Virtual)</span>
+          </a>
           <button className="p-2 text-text-secondary hover:text-text-primary hover:bg-muted/30 rounded-lg transition-colors">
             <Search className="w-4 h-4" />
           </button>
