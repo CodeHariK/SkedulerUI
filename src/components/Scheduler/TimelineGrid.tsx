@@ -54,7 +54,8 @@ export const TimelineGrid: React.FC<TimelineGridProps> = memo(({
       style={{ scrollBehavior: isPanning ? 'auto' : 'smooth' }}
     >
       <div className="flex flex-col relative" style={{ width: `${totalWidth}px`, minWidth: '100%' }}>
-        <div className="h-14 border-b border-border flex items-center relative bg-card sticky top-0 z-30">
+        {/* Hour Headers Row */}
+        <div className="h-14 border-b border-border flex items-center relative bg-card sticky top-0 z-50">
           {hours.map((hour, idx) => (
             <div
               key={hour}
@@ -66,6 +67,7 @@ export const TimelineGrid: React.FC<TimelineGridProps> = memo(({
           ))}
         </div>
 
+        {/* Grid Body */}
         <div className="flex flex-col relative">
           <div className="absolute inset-0 pointer-events-none flex z-[0]">
             {hours.map((hour, idx) => (
@@ -84,16 +86,11 @@ export const TimelineGrid: React.FC<TimelineGridProps> = memo(({
               const isSelectedRow = selection && selection.resourceId === resource.id;
               const isDropTargetRow = dropIndicator && dropIndicator.resourceId === resource.id;
 
+              // FIXED: Check if the card currently being dragged belongs to THIS specific row
+              const hasActiveCard = interactionEventId ? resourceEvents.some(e => e.id === interactionEventId) : false;
+
               const startCol = isSelectedRow ? Math.min(selection.startSlot, selection.currentSlot) : 0;
               const endCol = isSelectedRow ? Math.max(selection.startSlot, selection.currentSlot) : 0;
-
-              const rowStyle: React.CSSProperties = {
-                backgroundColor: virtualRow.index % 2 === 0 ? 'var(--row-bg-even)' : 'var(--row-bg-odd)',
-                zIndex: isDraggingRow ? 50 : 1
-              };
-              if (!isDraggingRow) {
-                rowStyle.transform = 'translate3d(0,0,0)';
-              }
 
               return (
                 <div
@@ -104,6 +101,8 @@ export const TimelineGrid: React.FC<TimelineGridProps> = memo(({
                     top: 0, left: 0,
                     height: `${rowHeights[resource.id] || 140}px`,
                     transform: `translateY(${virtualRow.start}px)`,
+                    // FIXED: Elevate the ENTIRE ROW's Stacking Context to prevent clipping behind other rows
+                    zIndex: isDraggingRow ? 50 : (hasActiveCard ? 40 : 1)
                   }}
                 >
                   <div
@@ -113,25 +112,28 @@ export const TimelineGrid: React.FC<TimelineGridProps> = memo(({
                       "border-b border-border absolute w-full h-full flex items-start transition-colors cursor-cell",
                       isDraggingRow && "bg-primary/5 border-primary/20 shadow-xl !transition-none"
                     )}
-                    style={rowStyle}
+                    style={{
+                      backgroundColor: virtualRow.index % 2 === 0 ? 'var(--row-bg-even)' : 'var(--row-bg-odd)',
+                      transform: isDraggingRow ? undefined : 'translate3d(0,0,0)'
+                    }}
                   >
                     <div
                       className="absolute inset-0 grid content-center gap-y-2 px-2 pointer-events-none"
                       style={{ gridTemplateColumns: `repeat(${totalSlots}, minmax(0, 1fr))` }}
                     >
-                      {/* FIXED: Elevated Z-Index and Solid Border for Empty Slot Selection */}
+                      {/* Slot Selection Box */}
                       {isSelectedRow && (
                         <div
-                          style={{ gridColumnStart: startCol + 1, gridColumnEnd: (startCol === endCol ? startCol + 4 : endCol) + 1, gridRowStart: 1 }}
-                          className="bg-primary/10 border-2 border-dashed border-primary rounded-xl h-[85px] z-30 mx-1 pointer-events-none"
+                          style={{ gridColumnStart: startCol + 1, gridColumnEnd: (startCol === endCol ? startCol + 4 : endCol) + 1, gridRowStart: 1, zIndex: 20 }}
+                          className="bg-primary/15 border-2 border-dashed border-primary rounded-lg h-[85px] mx-1 backdrop-blur-[1px]"
                         />
                       )}
 
-                      {/* FIXED: Elevated Z-Index and Solid Border for Drag Drop Placeholder */}
+                      {/* FIXED: Drag Drop Ghost -> Explicit zIndex 30 + Backdrop blur overrides resting cards */}
                       {isDropTargetRow && dropIndicator && (
                         <div
-                          style={{ gridColumnStart: dropIndicator.startCol + 1, gridColumnEnd: dropIndicator.endCol + 1, gridRowStart: 1 }}
-                          className="bg-primary/20 border-2 border-dashed border-primary rounded-xl h-[85px] z-30 mx-1 pointer-events-none"
+                          style={{ gridColumnStart: dropIndicator.startCol + 1, gridColumnEnd: dropIndicator.endCol + 1, gridRowStart: 1, zIndex: 30 }}
+                          className="bg-primary/20 border-2 border-dashed border-primary rounded-xl h-[85px] mx-1 backdrop-blur-[2px] shadow-sm"
                         />
                       )}
 
@@ -149,6 +151,7 @@ export const TimelineGrid: React.FC<TimelineGridProps> = memo(({
                           gridColumnStart: isResizingThis ? resizeGhostStart : gridColumnStart,
                           gridColumnEnd: isResizingThis ? resizeGhostEnd : gridColumnEnd,
                           gridRowStart: lane,
+                          // Resting cards stay at zIndex 10 so ghosts render cleanly above them
                           zIndex: isDraggingThis || isResizingThis ? 50 : 10
                         };
                         if (!isDraggingThis) {
@@ -157,11 +160,12 @@ export const TimelineGrid: React.FC<TimelineGridProps> = memo(({
 
                         return (
                           <React.Fragment key={event.id}>
-                            {/* FIXED: Elevated Z-Index and Solid Border for Resize Placeholder */}
+
+                            {/* FIXED: Resize Ghost -> Explicit zIndex 30 + Backdrop blur */}
                             {isResizingThis && (
                               <div
-                                style={{ gridColumnStart: resizeGhostStart, gridColumnEnd: resizeGhostEnd, gridRowStart: lane }}
-                                className="bg-primary/20 border-2 border-dashed border-primary rounded-xl h-[85px] z-30 mx-1 pointer-events-none"
+                                style={{ gridColumnStart: resizeGhostStart, gridColumnEnd: resizeGhostEnd, gridRowStart: lane, zIndex: 30 }}
+                                className="bg-primary/20 border-2 border-dashed border-primary rounded-xl h-[85px] mx-1 backdrop-blur-[2px] shadow-sm"
                               />
                             )}
 
@@ -175,7 +179,7 @@ export const TimelineGrid: React.FC<TimelineGridProps> = memo(({
                               )}
                             >
                               {renderEvent ? (
-                                renderEvent(event, startCardDrag, startCardResize)
+                                renderEvent(event, (e) => startCardDrag(e, event.id), (e, _, direction) => startCardResize(e, event.id, direction))
                               ) : (
                                 <EventCard
                                   event={event}
