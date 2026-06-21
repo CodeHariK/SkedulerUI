@@ -11,11 +11,15 @@ import { STATUS_COLORS, getIsDispatched, formatJobNumber } from './constants';
 interface EventDetailPopoverProps {
   event: EventItem;
   resource?: Resource;
+  onPointerEnter?: React.PointerEventHandler<HTMLDivElement>;
+  onPointerLeave?: React.PointerEventHandler<HTMLDivElement>;
 }
 
 export const EventDetailPopover: React.FC<EventDetailPopoverProps> = ({
   event,
   resource,
+  onPointerEnter,
+  onPointerLeave,
 }) => {
   const location = event.metadata?.location || '';
   const price = event.metadata?.price || 0;
@@ -24,18 +28,20 @@ export const EventDetailPopover: React.FC<EventDetailPopoverProps> = ({
     return `${start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} — ${end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
   };
 
-  // Determine dispatch status to match Figma design
   const isDispatched = getIsDispatched(event);
-
-  // Determine technician avatar colors based on role
   const isElectrical = resource?.metadata?.role === 'ELECTRICAL';
   const avatarBg = isElectrical 
     ? 'bg-[#FEF6F5] text-[#CF4523] border-[#FCDFD4]' 
     : 'bg-[#F3F8FF] text-[#1D4ED8] border-[#DBEAFE]';
 
   return (
-    <PopoverContent className="w-[320px] p-5 bg-white dark:bg-[#1c1c1c] border border-border/70 shadow-xl rounded-2xl z-50 flex flex-col gap-4 select-none" side="bottom" align="start">
-      {/* Header Section */}
+    <PopoverContent 
+      className="w-[320px] p-5 bg-white dark:bg-[#1c1c1c] border border-border/70 shadow-xl rounded-2xl z-50 flex flex-col gap-4 select-none"
+      side="bottom"
+      align="start"
+      onPointerEnter={onPointerEnter}
+      onPointerLeave={onPointerLeave}
+    >
       <div className="flex justify-between items-start gap-4">
         <div className="min-w-0">
           <h3 className="font-bold text-text-primary text-base leading-snug">{event.title}</h3>
@@ -43,18 +49,11 @@ export const EventDetailPopover: React.FC<EventDetailPopoverProps> = ({
             JOB #{formatJobNumber(event.id)} • Compliance
           </p>
         </div>
-        <Badge
-          variant="outline"
-          className={cn(
-            "text-xs font-semibold px-3 py-0.5 rounded-full border-none whitespace-nowrap",
-            STATUS_COLORS[event.status] || "bg-muted text-muted-foreground"
-          )}
-        >
+        <Badge variant="outline" className={cn("text-xs font-semibold px-3 py-0.5 rounded-full border-none whitespace-nowrap", STATUS_COLORS[event.status] || "bg-muted text-muted-foreground")}>
           {event.status}
         </Badge>
       </div>
 
-      {/* Location Section */}
       {location && (
         <div className="flex items-center gap-1.5 text-xs text-text-secondary font-medium">
           <MapPin className="w-3.5 h-3.5 text-text-tertiary shrink-0" />
@@ -64,35 +63,27 @@ export const EventDetailPopover: React.FC<EventDetailPopoverProps> = ({
 
       <Separator className="bg-border/60" />
 
-      {/* Details List */}
       <div className="flex flex-col gap-3.5 text-xs font-medium">
-        {/* Time Row */}
         <div className="flex justify-between items-center gap-2">
           <span className="text-text-tertiary">Time</span>
           <span className="font-semibold text-text-primary">{formatFullTime(event.startTime, event.endTime)}</span>
         </div>
 
-        {/* Technician Row */}
         <div className="flex justify-between items-center gap-2">
           <span className="text-text-tertiary">Technician</span>
           <div className="flex items-center gap-2">
-            <div className={cn(
-              "flex items-center justify-center w-6 h-6 rounded-full font-bold text-[9px] border shrink-0",
-              avatarBg
-            )}>
+            <div className={cn("flex items-center justify-center w-6 h-6 rounded-full font-bold text-[9px] border shrink-0", avatarBg)}>
               {resource ? (resource.avatar || resource.name.slice(0, 2).toUpperCase()) : 'UN'}
             </div>
             <span className="font-semibold text-text-primary">{resource ? resource.name : 'Unassigned'}</span>
           </div>
         </div>
 
-        {/* Callout Fee Row */}
         <div className="flex justify-between items-center gap-2">
           <span className="text-text-tertiary">Callout fee</span>
           <span className="font-semibold text-text-primary">${price}</span>
         </div>
 
-        {/* Dispatch Row */}
         <div className="flex justify-between items-center gap-2">
           <span className="text-text-tertiary">Dispatch</span>
           {isDispatched ? (
@@ -109,14 +100,9 @@ export const EventDetailPopover: React.FC<EventDetailPopoverProps> = ({
         </div>
       </div>
 
-      {/* Footer Actions */}
       <div className="flex gap-2.5 mt-2">
-        <Button className="flex-1 bg-[#2563eb] hover:bg-[#1d4ed8] text-white rounded-full font-medium h-9 text-xs">
-          View Job
-        </Button>
-        <Button variant="outline" className="flex-1 border-border/80 hover:bg-muted text-text-primary rounded-full font-medium h-9 text-xs">
-          Reschedule
-        </Button>
+        <Button className="flex-1 bg-[#2563eb] hover:bg-[#1d4ed8] text-white rounded-full font-medium h-9 text-xs">View Job</Button>
+        <Button variant="outline" className="flex-1 border-border/80 hover:bg-muted text-text-primary rounded-full font-medium h-9 text-xs">Reschedule</Button>
       </div>
     </PopoverContent>
   );

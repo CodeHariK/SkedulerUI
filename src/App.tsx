@@ -6,7 +6,21 @@ import { fetchSchedulerDataByDate, saveEventToDatabase } from '@/lib/schedulerSe
 import { Toaster } from '@/components/ui/sonner';
 
 function App() {
-  const [activeTab, setActiveTab] = useState('Scheduler');
+  // Read initial states from URL query parameters
+  const { initialTab, initialStressRowCount } = useMemo(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get('tab') || 'Scheduler';
+    const rows = params.get('rows');
+    let parsedRows = 50;
+    if (rows) {
+      const parsed = parseInt(rows, 10);
+      if (!isNaN(parsed)) parsedRows = parsed;
+    }
+    return { initialTab: tab, initialStressRowCount: parsedRows };
+  }, []);
+
+  const [activeTab, setActiveTab] = useState(initialTab);
+  const [stressRowCount, setStressRowCount] = useState(initialStressRowCount);
 
   // Generate default scheduler data with 8 resources (between 5 and 10).
   const { schedulerResources, schedulerEvents } = useMemo(() => {
@@ -14,7 +28,29 @@ function App() {
     return { schedulerResources: resources, schedulerEvents: events };
   }, []);
 
-  const [stressRowCount, setStressRowCount] = useState(800);
+  // Update URL search parameters when tab changes
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab);
+    const params = new URLSearchParams(window.location.search);
+    params.set('tab', tab);
+    if (tab === 'Stress Test') {
+      params.set('rows', stressRowCount.toString());
+    } else {
+      params.delete('rows');
+    }
+    const newUrl = `${window.location.pathname}?${params.toString()}`;
+    window.history.pushState(null, '', newUrl);
+  };
+
+  // Update URL search parameters when row count changes
+  const handleStressRowCountChange = (count: number) => {
+    setStressRowCount(count);
+    const params = new URLSearchParams(window.location.search);
+    params.set('tab', 'Stress Test');
+    params.set('rows', count.toString());
+    const newUrl = `${window.location.pathname}?${params.toString()}`;
+    window.history.pushState(null, '', newUrl);
+  };
 
   // Generate stress test data with dynamic resources and associated events.
   // Memoized so it doesn't regenerate on every render unless stressRowCount changes.
@@ -27,7 +63,7 @@ function App() {
     <div className="min-h-screen bg-background text-foreground flex flex-col font-sans">
       <Toaster position="bottom-right" />
       {/* Navigation Header */}
-      <NavigationHeader activeTab={activeTab} onTabChange={setActiveTab} />
+      <NavigationHeader activeTab={activeTab} onTabChange={handleTabChange} />
 
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col overflow-hidden w-full">
@@ -54,10 +90,10 @@ function App() {
                   <select
                     id="stress-rows-select"
                     value={stressRowCount}
-                    onChange={(e) => setStressRowCount(Number(e.target.value))}
+                    onChange={(e) => handleStressRowCountChange(Number(e.target.value))}
                     className="bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-800 rounded px-2 py-0.5 text-xs font-semibold focus:outline-none"
                   >
-                    {[200, 400, 800, 1000, 1200, 1500, 2000].map(count => (
+                    {[50, 200, 400, 800, 1000, 1200, 1500, 2000].map(count => (
                       <option key={count} value={count}>{count} Rows</option>
                     ))}
                   </select>

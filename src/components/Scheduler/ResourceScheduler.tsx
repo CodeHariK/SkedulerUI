@@ -119,7 +119,6 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
 
   const [showJobCreationModal, setShowJobCreationModal] = useState(false);
   const [newEventData, setNewEventData] = useState<NewEventData | null>(null);
-  const [, setVirtualVersion] = useState(0);
 
   const checkAndSyncProps = useCallback(() => {
     if (activeModeRef.current === 'NONE') {
@@ -232,14 +231,13 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
     estimateSize,
     overscan: 5,
     initialRect: { width: 1200, height: 800 },
-    onChange: () => { setVirtualVersion(v => v + 1); }
   });
 
   // FIXED: Force React to instantly paint the new layout heights instead of waiting for a manual scroll
   useEffect(() => {
     rowVirtualizer.measure();
-    setVirtualVersion(v => v + 1);
-  }, [layoutEngine.rowHeights, rowVirtualizer]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [layoutEngine.rowHeights]);
 
   const virtualRows = rowVirtualizer.getVirtualItems();
   const totalSize = rowVirtualizer.getTotalSize();

@@ -55,12 +55,15 @@ export const ResourceSidebar: React.FC<ResourceSidebarProps> = React.memo(({
   };
 
   return (
-    <div className="w-[240px] flex-shrink-0 border-r border-border bg-card z-40 select-none sticky left-0">
-      <div className="h-14 flex items-center px-6 border-b border-border bg-card sticky top-0 z-50">
+    <div
+      className="w-[240px] flex-shrink-0 select-none relative z-40"
+      style={{ height: `${totalSize + 56}px` }}
+    >
+      <div className="h-14 flex items-center px-6 border-b border-r border-border bg-card sticky top-0 left-0 z-50">
         <span className="text-[10px] font-bold tracking-wider text-text-tertiary uppercase">TECHNICIANS</span>
       </div>
 
-      <div style={{ height: `${totalSize}px`, width: '100%', position: 'relative' }}>
+      <div className="sticky left-0 bg-card border-r border-border" style={{ height: `${totalSize}px`, width: '100%', position: 'relative' }}>
         {virtualRows.map((virtualRow) => {
           const resource = resources[virtualRow.index];
           if (!resource) return null;
@@ -95,7 +98,7 @@ export const ResourceSidebar: React.FC<ResourceSidebarProps> = React.memo(({
               {isDraggingRow && (
                 <div
                   ref={draggedSidebarRowRef}
-                  className="flex items-center gap-3 px-4 border-b border-border select-none h-full absolute inset-0 opacity-100 border-primary/40 bg-primary/5 shadow-2xl !transition-none cursor-grabbing"
+                  className="flex items-center gap-3 px-4 border-b border-border select-none h-full absolute inset-0 opacity-100 border-primary/40 bg-primary/5 !transition-none cursor-grabbing"
                   style={{ backgroundColor: bgEvenOdd }}
                 >
                   {renderResource

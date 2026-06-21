@@ -1,11 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import type { Resource, EventItem } from './types';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Popover, PopoverTrigger } from '@/components/ui/popover';
 import { EventDetailPopover } from './EventDetailPopover';
 import { Eye, EyeOff } from 'lucide-react';
-
 import { STATUS_COLORS, getIsDispatched } from './constants';
 
 interface EventCardProps {
@@ -26,23 +25,43 @@ export const EventCard: React.FC<EventCardProps> = React.memo(({
   const location = event.metadata?.location || '';
   const price = event.metadata?.price || 0;
 
-  // NEW: Control the Popover state manually based on hover
   const [isHovering, setIsHovering] = useState(false);
+  const hoverTimeoutRef = useRef<number | null>(null);
+
+  // Clean up timeout on unmount to prevent leaks
+  useEffect(() => {
+    return () => {
+      if (hoverTimeoutRef.current) {
+        window.clearTimeout(hoverTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const handlePointerEnter = () => {
+    if (hoverTimeoutRef.current) window.clearTimeout(hoverTimeoutRef.current);
+    hoverTimeoutRef.current = window.setTimeout(() => {
+      setIsHovering(true);
+    }, 250); // 250ms debounce prevents portal leaks during scrolling
+  };
+
+  const handlePointerLeave = () => {
+    if (hoverTimeoutRef.current) {
+      window.clearTimeout(hoverTimeoutRef.current);
+      hoverTimeoutRef.current = null;
+    }
+    setIsHovering(false);
+  };
 
   const formatFullTime = (start: Date, end: Date) => {
     return `${start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} — ${end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
   };
 
   const role = resource?.metadata?.role || '';
-  const borderClass = role === 'ELECTRICAL'
-    ? 'border-l-[#CF4523]'
-    : 'border-l-[#2563eb]';
-
+  const borderClass = role === 'ELECTRICAL' ? 'border-l-[#CF4523]' : 'border-l-[#2563eb]';
   const isDispatched = getIsDispatched(event);
 
   return (
     <Popover
-      // FIXED: Bind the Popover to our hover state, and forcefully close it if we are currently dragging
       open={isHovering && !isDragging}
       onOpenChange={setIsHovering}
     >
@@ -51,15 +70,13 @@ export const EventCard: React.FC<EventCardProps> = React.memo(({
           className={cn(
             "flex flex-col justify-between h-[85px] p-3 pl-4 rounded-xl border border-slate-100 bg-white dark:bg-[#1a1a24] dark:border-border/30 text-left shadow-md hover:shadow-lg relative select-none touch-none cursor-pointer group",
             "transition-[box-shadow,transform,background-color] duration-200",
-            "border-l-[4px]",
-            borderClass,
+            "border-l-[4px]", borderClass,
             isDragging && "opacity-60 scale-[1.02] shadow-md border-primary/40 ring-1 ring-primary/20"
           )}
-          // FIXED: Use Pointer events to open/close the tooltip on hover
-          onPointerEnter={() => setIsHovering(true)}
-          onPointerLeave={() => setIsHovering(false)}
+          onPointerEnter={handlePointerEnter}
+          onPointerLeave={handlePointerLeave}
           onPointerDown={(e) => {
-            // Close the tooltip instantly the moment the user clicks down to drag
+            if (hoverTimeoutRef.current) window.clearTimeout(hoverTimeoutRef.current);
             setIsHovering(false);
             onDragStart(e, event.id);
           }}
@@ -69,7 +86,8 @@ export const EventCard: React.FC<EventCardProps> = React.memo(({
             className="absolute left-0 top-0 w-2.5 h-full cursor-ew-resize z-20 flex items-center justify-start rounded-l-xl opacity-0 group-hover:opacity-100 transition-opacity"
             onPointerDown={(e) => {
               e.stopPropagation();
-              setIsHovering(false); // Close tooltip when interacting with handle
+              if (hoverTimeoutRef.current) window.clearTimeout(hoverTimeoutRef.current);
+              setIsHovering(false);
               onResizeStart(e, event.id, 'left');
             }}
           >
@@ -81,7 +99,8 @@ export const EventCard: React.FC<EventCardProps> = React.memo(({
             className="absolute right-0 top-0 w-2.5 h-full cursor-ew-resize z-20 flex items-center justify-end rounded-r-xl opacity-0 group-hover:opacity-100 transition-opacity"
             onPointerDown={(e) => {
               e.stopPropagation();
-              setIsHovering(false); // Close tooltip when interacting with handle
+              if (hoverTimeoutRef.current) window.clearTimeout(hoverTimeoutRef.current);
+              setIsHovering(false);
               onResizeStart(e, event.id, 'right');
             }}
           >
@@ -103,13 +122,7 @@ export const EventCard: React.FC<EventCardProps> = React.memo(({
           </div>
 
           <div className="flex items-center gap-3 mt-1.5 flex-nowrap overflow-hidden">
-            <Badge
-              variant="outline"
-              className={cn(
-                "text-[9px] font-bold px-2 py-0.5 rounded-full border-none uppercase tracking-wider shrink-0",
-                STATUS_COLORS[event.status] || "bg-muted text-muted-foreground"
-              )}
-            >
+            <Badge variant="outline" className={cn("text-[9px] font-bold px-2 py-0.5 rounded-full border-none uppercase tracking-wider shrink-0", STATUS_COLORS[event.status] || "bg-muted text-muted-foreground")}>
               {event.status}
             </Badge>
             <span className="text-[12px] font-bold text-text-primary shrink-0">${price}</span>
@@ -118,15 +131,12 @@ export const EventCard: React.FC<EventCardProps> = React.memo(({
         </div>
       </PopoverTrigger>
 
-      {/* The PopoverContent receives mouse events by default, causing flickers if the cursor moves over the gap. 
-          We must wrap it in a custom class or inline style that forces pointer-events: auto so hovering the popover itself keeps it open. 
-          (Note: Radix Popover handles hover slightly better if you hover the content, but leaving it as-is works fine for tooltip behavior). */}
-      <div
-        onPointerEnter={() => setIsHovering(true)}
-        onPointerLeave={() => setIsHovering(false)}
-      >
-        <EventDetailPopover event={event} resource={resource} />
-      </div>
+      <EventDetailPopover 
+        event={event} 
+        resource={resource} 
+        onPointerEnter={handlePointerEnter}
+        onPointerLeave={handlePointerLeave}
+      />
     </Popover>
   );
 });

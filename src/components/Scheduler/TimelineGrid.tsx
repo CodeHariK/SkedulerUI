@@ -46,7 +46,6 @@ export const TimelineGrid: React.FC<TimelineGridProps> = memo(({
   virtualRows, totalSize, rowHeights, eventLanes, eventSpans, eventsByResource,
 }) => {
 
-  // Helper to render the inner content of a row (we need to call this twice for dragged rows)
   const renderRowContent = (
     resource: Resource, resourceEvents: EventItem[], isSelectedRow: boolean, isDropTargetRow: boolean,
     startCol: number, endCol: number, isClone: boolean = false
@@ -69,7 +68,6 @@ export const TimelineGrid: React.FC<TimelineGridProps> = memo(({
           const resizeGhostStart = isResizingThis ? resizeIndicator!.startCol + 1 : gridColumnStart;
           const resizeGhostEnd = isResizingThis ? resizeIndicator!.endCol + 1 : gridColumnEnd;
 
-          // If this is the static placeholder beneath a row drag, we don't need active drag transforms
           const cardStyle: React.CSSProperties = {
             gridColumnStart: isResizingThis ? resizeGhostStart : gridColumnStart,
             gridColumnEnd: isResizingThis ? resizeGhostEnd : gridColumnEnd,
@@ -146,7 +144,8 @@ export const TimelineGrid: React.FC<TimelineGridProps> = memo(({
 
               return (
                 <div
-                  key={`row-${resource.id}`}
+                  // 🚀 CRITICAL FIX: Always use virtualRow.key to recycle DOM nodes
+                  key={virtualRow.key}
                   data-index={virtualRow.index}
                   className="absolute w-full"
                   style={{
@@ -156,7 +155,6 @@ export const TimelineGrid: React.FC<TimelineGridProps> = memo(({
                     zIndex: isDraggingRow ? 50 : (hasActiveCard ? 40 : 1)
                   }}
                 >
-                  {/* THE STATIC PLACEHOLDER */}
                   <div
                     onPointerDown={(e) => handleRowPointerDown(e, resource.id)}
                     className={cn(
@@ -168,11 +166,10 @@ export const TimelineGrid: React.FC<TimelineGridProps> = memo(({
                     {renderRowContent(resource, resourceEvents, isSelectedRow, isDropTargetRow, startCol, endCol, false)}
                   </div>
 
-                  {/* THE FLOATING CLONE */}
                   {isDraggingRow && (
                     <div
                       ref={draggedGridRowRef}
-                      className="border-b border-border absolute w-full h-full flex items-start opacity-100 border-primary/40 bg-primary/5 shadow-2xl !transition-none pointer-events-none"
+                      className="border-b border-border absolute w-full h-full flex items-start opacity-100 border-primary/40 bg-primary/5 !transition-none pointer-events-none"
                       style={{ backgroundColor: bgEvenOdd, zIndex: 50 }}
                     >
                       {renderRowContent(resource, resourceEvents, false, false, 0, 0, true)}
