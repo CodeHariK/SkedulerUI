@@ -35,23 +35,8 @@ jobs:
       - name: Install root dependencies
         run: npm ci
 
-      - name: Install SolidJS dependencies
-        run: |
-          cd solid_src_no_virtual
-          npm ci
-
-      - name: Build SolidJS
-        run: |
-          cd solid_src_no_virtual
-          npm run build
-
       - name: Build React root
         run: npm run build
-
-      - name: Copy SolidJS build to root dist/solid
-        run: |
-          mkdir -p dist/solid
-          cp -r solid_src_no_virtual/dist/* dist/solid/
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
