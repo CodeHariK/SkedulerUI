@@ -82,6 +82,12 @@ export const TimelineControlsHeader: React.FC<TimelineControlsHeaderProps> = Rea
     }
   };
 
+  const [calendarMonth, setCalendarMonth] = React.useState<Date>(currentDate);
+
+  React.useEffect(() => {
+    setCalendarMonth(currentDate);
+  }, [currentDate]);
+
   return (
     <div
       className="bg-white dark:bg-[#141414] border-b border-[#e5e7eb] dark:border-[#2a2a2a] flex flex-col md:flex-row items-center justify-between gap-4 px-5 py-3 w-full transition-colors duration-200 select-none"
@@ -150,6 +156,8 @@ export const TimelineControlsHeader: React.FC<TimelineControlsHeaderProps> = Rea
                 mode="single"
                 selected={currentDate}
                 onSelect={(date) => date && onDateChange(date)}
+                month={calendarMonth}
+                onMonthChange={setCalendarMonth}
               />
             </PopoverContent>
           </Popover>

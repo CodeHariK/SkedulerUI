@@ -131,12 +131,16 @@ export const EventCard: React.FC<EventCardProps> = React.memo(({
         </div>
       </PopoverTrigger>
 
-      <EventDetailPopover 
-        event={event} 
-        resource={resource} 
-        onPointerEnter={handlePointerEnter}
-        onPointerLeave={handlePointerLeave}
-      />
+      {/* Only build the detail subtree once the card is actually hovered, so the
+          thousands of idle cards never construct their popover content. */}
+      {isHovering && !isDragging && (
+        <EventDetailPopover
+          event={event}
+          resource={resource}
+          onPointerEnter={handlePointerEnter}
+          onPointerLeave={handlePointerLeave}
+        />
+      )}
     </Popover>
   );
 });

@@ -1,16 +1,35 @@
-import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useRef, useState, useEffect, useCallback, useMemo, lazy, Suspense } from 'react';
 import type { Resource, EventItem, NewEventData } from './types';
 import { TimelineControlsHeader } from './TimelineControlsHeader';
 import { ResourceSidebar } from './ResourceSidebar';
 import { TimelineGrid } from './TimelineGrid';
-import { JobCreationDialog } from './JobCreationDialog';
+// Lazy-loaded: the job-creation modal (and its dialog/select/calendar deps) is
+// only needed once the user opens it, so keep it out of the initial bundle.
+const JobCreationDialog = lazy(() =>
+  import('./JobCreationDialog').then((m) => ({ default: m.JobCreationDialog }))
+);
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { LAYOUT_CONSTANTS } from './constants';
+// Shallow metadata comparison — avoids the cost of JSON.stringify on every
+// item during prop-sync checks (which run on each pointer-up and prop change).
+const isShallowMetaDifferent = (a?: Record<string, unknown>, b?: Record<string, unknown>) => {
+  if (a === b) return false;
+  if (!a || !b) return true;
+  const ak = Object.keys(a);
+  const bk = Object.keys(b);
+  if (ak.length !== bk.length) return true;
+  for (let i = 0; i < ak.length; i++) {
+    const k = ak[i];
+    if (a[k] !== b[k]) return true;
+  }
+  return false;
+};
+
 const areResourcesDifferent = (a: Resource[], b: Resource[]) => {
   if (a.length !== b.length) return true;
   for (let i = 0; i < a.length; i++) {
     if (a[i].id !== b[i].id || a[i].name !== b[i].name || a[i].avatar !== b[i].avatar) return true;
-    if (JSON.stringify(a[i].metadata) !== JSON.stringify(b[i].metadata)) return true;
+    if (isShallowMetaDifferent(a[i].metadata, b[i].metadata)) return true;
   }
   return false;
 };
@@ -24,7 +43,7 @@ const areEventsDifferent = (a: EventItem[], b: EventItem[]) => {
       ea.status !== eb.status || ea.startTime.getTime() !== eb.startTime.getTime() ||
       ea.endTime.getTime() !== eb.endTime.getTime()
     ) return true;
-    if (JSON.stringify(ea.metadata) !== JSON.stringify(eb.metadata)) return true;
+    if (isShallowMetaDifferent(ea.metadata, eb.metadata)) return true;
   }
   return false;
 };
@@ -135,20 +154,13 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
 
   useEffect(() => { checkAndSyncProps(); }, [resources, events, checkAndSyncProps]);
 
-  // Dynamically generate events for currentDate if none exist yet
+  // Dynamically fetch events for currentDate whenever it changes
   useEffect(() => {
     let active = true;
-    const hasEventsForDate = localEvents.some(e => {
-      const d = e.startTime;
-      return d.getFullYear() === currentDate.getFullYear() &&
-        d.getMonth() === currentDate.getMonth() &&
-        d.getDate() === currentDate.getDate();
-    });
-
-    if (!hasEventsForDate && localResources.length > 0) {
+    if (localResources.length > 0) {
       fetchEventsForDate(localResources.length, currentDate).then(({ events: newEvents }) => {
         if (active) {
-          setLocalEvents(prev => [...prev, ...newEvents]);
+          setLocalEvents(newEvents);
         }
       });
     }
@@ -156,7 +168,7 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
     return () => {
       active = false;
     };
-  }, [currentDate, localResources.length, localEvents, fetchEventsForDate]);
+  }, [currentDate, localResources.length, fetchEventsForDate]);
 
   const slotsPerHour = 4;
   const totalHours = useMemo(() => dayEndHour - dayStartHour, [dayEndHour, dayStartHour]);
@@ -176,8 +188,6 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
   }, [localEvents, currentDate]);
 
   const layoutEngine = useMemo(() => {
-    const t0 = performance.now(); // START TIMER
-
     const rowHeights: Record<string, number> = {};
     const eventLanes: Record<string, number> = {};
     const eventSpans: Record<string, { gridColumnStart: number, gridColumnEnd: number }> = {};
@@ -213,11 +223,11 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
       rowHeights[resource.id] = Math.max(LAYOUT_CONSTANTS.ROW_MIN_HEIGHT, lanes.length * LAYOUT_CONSTANTS.LANE_HEIGHT + LAYOUT_CONSTANTS.LANE_OFFSET);
     });
 
-    const t1 = performance.now(); // END TIMER
-    console.log(`⏱️ layoutEngine Calculation: ${(t1 - t0).toFixed(2)}ms for ${localEvents.length} events`);
-
     return { rowHeights, eventLanes, eventSpans, eventsByResource };
-  }, [localResources, localEvents, dayStartHour, totalHours, slotsPerHour]);
+    // Depend on `dailyEvents` (the actual input) rather than `localEvents`, so the
+    // layout recomputes correctly when the date changes and is not recomputed for
+    // events on other days.
+  }, [localResources, dailyEvents, dayStartHour, totalHours, slotsPerHour]);
 
   const estimateSize = useCallback((index: number) => {
     const resource = localResources[index];
@@ -238,6 +248,12 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
     rowVirtualizer.measure();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [layoutEngine.rowHeights]);
+
+  // Keep a stable reference to the virtualizer so pointer-move handlers can read
+  // the latest virtual items without listing `virtualRows` as a dependency
+  // (which would otherwise rebuild the handler on every scroll tick).
+  const virtualizerRef = useRef(rowVirtualizer);
+  virtualizerRef.current = rowVirtualizer;
 
   const virtualRows = rowVirtualizer.getVirtualItems();
   const totalSize = rowVirtualizer.getTotalSize();
@@ -374,8 +390,6 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
       return;
     }
 
-    const t0 = performance.now(); // START TIMER
-
     if (activeModeRef.current === 'RESIZING_CARD' && interaction) {
       const currentSlot = Math.max(0, Math.floor((e.clientX - metricsRef.current.gridLeft + gridEl.scrollLeft) / activeSlotWidthRef.current));
       if (lastInteractionRef.current?.slot !== currentSlot) {
@@ -410,7 +424,7 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
       if (canChangeRows) {
         const gridY = (e.clientY - metricsRef.current.containerTop + scrollContainerEl.scrollTop) - LAYOUT_CONSTANTS.HEADER_OFFSET;
         let targetRowIdx = localResources.length - 1;
-        const found = virtualRows.find(item => gridY >= item.start && gridY <= (item.start + item.size));
+        const found = virtualizerRef.current.getVirtualItems().find(item => gridY >= item.start && gridY <= (item.start + item.size));
         if (found) targetRowIdx = found.index;
 
         targetRowIdx = Math.max(0, Math.min(localResources.length - 1, targetRowIdx));
@@ -442,7 +456,7 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
       const gridY = (e.clientY - metricsRef.current.containerTop + scrollContainerEl.scrollTop) - LAYOUT_CONSTANTS.HEADER_OFFSET;
 
       let newIndex = localResources.length - 1;
-      const found = virtualRows.find(item => gridY >= item.start && gridY <= (item.start + item.size));
+      const found = virtualizerRef.current.getVirtualItems().find(item => gridY >= item.start && gridY <= (item.start + item.size));
       if (found) newIndex = found.index;
       newIndex = Math.max(0, Math.min(localResources.length - 1, newIndex));
 
@@ -453,22 +467,14 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
       }
     } else if (activeModeRef.current === 'SELECTING_SLOT' && selection) {
       const currentSlot = Math.max(0, Math.floor((e.clientX - metricsRef.current.gridLeft + gridEl.scrollLeft) / activeSlotWidthRef.current));
-      
+
       // Update state only if the slot boundary has actually changed
       if (selection.currentSlot !== currentSlot) {
         setSelection(prev => prev ? { ...prev, currentSlot } : null);
       }
     }
 
-    const t1 = performance.now(); // END TIMER
-    const duration = t1 - t0;
-
-    // Log if the pointer move calculation takes longer than 8ms (threatening 60FPS)
-    if (duration > 8) {
-      console.warn(`⚠️ Slow PointerMove (${activeModeRef.current}): ${duration.toFixed(2)}ms`);
-    }
-
-  }, [interaction, rowDrag, selection, localResources, totalSlots, virtualRows, canChangeRows]);
+  }, [interaction, rowDrag, selection, localResources, totalSlots, canChangeRows]);
 
   const handlePointerUp = useCallback((e: React.PointerEvent) => {
     if (activeModeRef.current === 'DRAGGING_CARD') {
@@ -562,9 +568,9 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
       if (dx > 5 || dy > 5) {
         const start = Math.min(selection.startSlot, selection.currentSlot);
         const end = Math.max(selection.startSlot, selection.currentSlot);
-        
+
         // 3. CHANGE `end` TO `end + 1` HERE
-        const finalEnd = start === end ? start + 1 : end + 1; 
+        const finalEnd = start === end ? start + 1 : end + 1;
 
         setNewEventData({
           resourceId: selection.resourceId,
@@ -668,10 +674,14 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
           />
         </div>
       </div>
-      <JobCreationDialog
-        isOpen={showJobCreationModal} onClose={() => { setShowJobCreationModal(false); setNewEventData(null); }}
-        newEventData={newEventData} onChange={setNewEventData} onSave={handleSaveJob} resources={localResources}
-      />
+      {showJobCreationModal && (
+        <Suspense fallback={null}>
+          <JobCreationDialog
+            isOpen={showJobCreationModal} onClose={() => { setShowJobCreationModal(false); setNewEventData(null); }}
+            newEventData={newEventData} onChange={setNewEventData} onSave={handleSaveJob} resources={localResources}
+          />
+        </Suspense>
+      )}
     </div>
   );
 };
