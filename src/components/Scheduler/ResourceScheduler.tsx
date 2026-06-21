@@ -260,18 +260,18 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
   }, []);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (activeModeRef.current !== 'NONE' || !gridRef.current) return;
+    if (activeModeRef.current !== 'NONE' || !scrollContainerRef.current) return;
     activeModeRef.current = 'PANNING';
     setIsPanning(true);
-    setStartX(e.pageX - gridRef.current.offsetLeft);
-    setScrollLeft(gridRef.current.scrollLeft);
+    setStartX(e.pageX - scrollContainerRef.current.offsetLeft);
+    setScrollLeft(scrollContainerRef.current.scrollLeft);
   }, []);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!isPanning || activeModeRef.current !== 'PANNING' || !gridRef.current) return;
+    if (!isPanning || activeModeRef.current !== 'PANNING' || !scrollContainerRef.current) return;
     e.preventDefault();
-    const walk = ((e.pageX - gridRef.current.offsetLeft) - startX) * 1.5;
-    gridRef.current.scrollLeft = scrollLeft - walk;
+    const walk = ((e.pageX - scrollContainerRef.current.offsetLeft) - startX) * 1.5;
+    scrollContainerRef.current.scrollLeft = scrollLeft - walk;
   }, [isPanning, startX, scrollLeft]);
 
   const handleMouseUpOrLeave = useCallback(() => {
@@ -367,7 +367,12 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
     if (!gridEl || !scrollContainerEl) return;
 
     // We only want to profile the heavy dragging/resizing work
-    if (activeModeRef.current !== 'RESIZING_CARD' && activeModeRef.current !== 'DRAGGING_CARD' && activeModeRef.current !== 'DRAGGING_ROW') {
+    if (
+      activeModeRef.current !== 'RESIZING_CARD' &&
+      activeModeRef.current !== 'DRAGGING_CARD' &&
+      activeModeRef.current !== 'DRAGGING_ROW' &&
+      activeModeRef.current !== 'SELECTING_SLOT'
+    ) {
       return;
     }
 
@@ -447,6 +452,13 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
       if (lastInteractionRef.current?.slot !== newIndex) {
         lastInteractionRef.current = { slot: newIndex };
         setRowDropIndicator(newIndex);
+      }
+    } else if (activeModeRef.current === 'SELECTING_SLOT' && selection) {
+      const currentSlot = Math.max(0, Math.floor((e.clientX - metricsRef.current.gridLeft + gridEl.scrollLeft) / activeSlotWidthRef.current));
+      
+      // Update state only if the slot boundary has actually changed
+      if (selection.currentSlot !== currentSlot) {
+        setSelection(prev => prev ? { ...prev, currentSlot } : null);
       }
     }
 
@@ -552,7 +564,9 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
       if (dx > 5 || dy > 5) {
         const start = Math.min(selection.startSlot, selection.currentSlot);
         const end = Math.max(selection.startSlot, selection.currentSlot);
-        const finalEnd = start === end ? start + 1 : end;
+        
+        // 3. CHANGE `end` TO `end + 1` HERE
+        const finalEnd = start === end ? start + 1 : end + 1; 
 
         setNewEventData({
           resourceId: selection.resourceId,
@@ -618,41 +632,43 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
         isMapViewActive={isMapViewActive} onMapViewToggle={handleMapViewToggle}
         theme={theme} onThemeToggle={handleThemeToggle}
       />
-      <div
-        ref={setScrollContainerRefs}
-        className="flex-1 min-h-0 flex relative overflow-y-auto overflow-x-hidden select-none"
-        onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerLeave={handlePointerUp}
-      >
-        <ResourceSidebar
-          resources={localResources}
-          virtualRows={virtualRows}
-          totalSize={totalSize}
-          rowDrag={rowDrag}
-          rowDropIndicator={rowDropIndicator}
-          draggedSidebarRowRef={draggedSidebarRowRef}
-          startRowDrag={startRowDrag}
-          renderResource={renderResource}
-        />
-        <TimelineGrid
-          gridRef={gridRef}
-          virtualRows={virtualRows}
-          totalSize={totalSize}
-          isPanning={isPanning}
-          draggedElementRef={draggedElementRef}
-          draggedGridRowRef={draggedGridRowRef}
-          dropIndicator={dropIndicator}
-          resizeIndicator={resizeIndicator}
-          rowDrag={rowDrag}
-          rowDropIndicator={rowDropIndicator}
-          onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUpOrLeave={handleMouseUpOrLeave}
-          totalWidth={totalWidth} hours={hours} totalHours={totalHours} formatHourLabel={formatHourLabel}
-          resources={localResources} selection={selection}
-          totalSlots={totalSlots}
-          startCardDrag={startCardDrag} startCardResize={startCardResize} handleRowPointerDown={handleRowPointerDown}
-          renderEvent={renderEvent} interactionEventId={interaction?.eventId}
-          rowHeights={layoutEngine.rowHeights} eventLanes={layoutEngine.eventLanes}
-          eventSpans={layoutEngine.eventSpans} eventsByResource={layoutEngine.eventsByResource}
-        />
+      <div className="flex-1 min-h-0 relative overflow-hidden">
+        <div
+          ref={setScrollContainerRefs}
+          className="absolute inset-0 flex overflow-auto select-none"
+          onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerLeave={handlePointerUp}
+        >
+          <ResourceSidebar
+            resources={localResources}
+            virtualRows={virtualRows}
+            totalSize={totalSize}
+            rowDrag={rowDrag}
+            rowDropIndicator={rowDropIndicator}
+            draggedSidebarRowRef={draggedSidebarRowRef}
+            startRowDrag={startRowDrag}
+            renderResource={renderResource}
+          />
+          <TimelineGrid
+            gridRef={gridRef}
+            virtualRows={virtualRows}
+            totalSize={totalSize}
+            isPanning={isPanning}
+            draggedElementRef={draggedElementRef}
+            draggedGridRowRef={draggedGridRowRef}
+            dropIndicator={dropIndicator}
+            resizeIndicator={resizeIndicator}
+            rowDrag={rowDrag}
+            rowDropIndicator={rowDropIndicator}
+            onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUpOrLeave={handleMouseUpOrLeave}
+            totalWidth={totalWidth} hours={hours} totalHours={totalHours} formatHourLabel={formatHourLabel}
+            resources={localResources} selection={selection}
+            totalSlots={totalSlots}
+            startCardDrag={startCardDrag} startCardResize={startCardResize} handleRowPointerDown={handleRowPointerDown}
+            renderEvent={renderEvent} interactionEventId={interaction?.eventId}
+            rowHeights={layoutEngine.rowHeights} eventLanes={layoutEngine.eventLanes}
+            eventSpans={layoutEngine.eventSpans} eventsByResource={layoutEngine.eventsByResource}
+          />
+        </div>
       </div>
       <JobCreationDialog
         isOpen={showJobCreationModal} onClose={() => { setShowJobCreationModal(false); setNewEventData(null); }}

@@ -12,7 +12,7 @@ export const fetchSchedulerDataByDate = async (
 ): Promise<{ resources: Resource[]; events: EventItem[] }> => {
   // Simulate a small network delay to mimic a server response
   await new Promise((resolve) => setTimeout(resolve, 50));
-  
+
   return generateStressTestData(resourceCount, date);
 };
 
@@ -22,7 +22,7 @@ export const fetchSchedulerDataByDate = async (
 export const saveEventToDatabase = async (event: EventItem): Promise<void> => {
   // Simulate network latency for a write operation
   const savePromise = new Promise((resolve) => setTimeout(resolve, 800));
-  
+
   toast.promise(savePromise, {
     loading: `Saving changes for "${event.title}"...`,
     success: `Changes saved successfully.`,
@@ -30,5 +30,5 @@ export const saveEventToDatabase = async (event: EventItem): Promise<void> => {
   });
 
   await savePromise;
-  console.log('Successfully saved event to database:', event);
+  // console.log('Successfully saved event to database:', event);
 };

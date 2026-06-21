@@ -55,8 +55,8 @@ export const ResourceSidebar: React.FC<ResourceSidebarProps> = React.memo(({
   };
 
   return (
-    <div className="w-[240px] flex-shrink-0 border-r border-border bg-card z-10 select-none">
-      <div className="h-14 flex items-center px-6 border-b border-border bg-card sticky top-0 z-30">
+    <div className="w-[240px] flex-shrink-0 border-r border-border bg-card z-40 select-none sticky left-0">
+      <div className="h-14 flex items-center px-6 border-b border-border bg-card sticky top-0 z-50">
         <span className="text-[10px] font-bold tracking-wider text-text-tertiary uppercase">TECHNICIANS</span>
       </div>
 

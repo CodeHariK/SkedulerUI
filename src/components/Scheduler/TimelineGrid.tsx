@@ -110,7 +110,7 @@ export const TimelineGrid: React.FC<TimelineGridProps> = memo(({
       ref={gridRef}
       onMouseDown={onMouseDown} onMouseMove={onMouseMove}
       onMouseUp={onMouseUpOrLeave} onMouseLeave={onMouseUpOrLeave}
-      className={cn("flex-1 overflow-x-auto select-none", isPanning ? "cursor-grabbing" : "cursor-grab")}
+      className={cn("flex-1 select-none", isPanning ? "cursor-grabbing" : "cursor-grab")}
       style={{ scrollBehavior: isPanning ? 'auto' : 'smooth' }}
     >
       <div className="flex flex-col relative" style={{ width: `${totalWidth}px`, minWidth: '100%' }}>
