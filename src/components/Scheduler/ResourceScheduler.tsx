@@ -169,6 +169,24 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
 
   useEffect(() => { checkAndSyncProps(); }, [resources, events, checkAndSyncProps]);
 
+  // Esc cancels any in-progress interaction and clears its ghost/indicators.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      activeModeRef.current = 'NONE';
+      setIsPanning(false);
+      setSelection(null);
+      setDropIndicator(null);
+      setResizeIndicator(null);
+      setRowDrag(null);
+      setRowDropIndicator(null);
+      setInteraction(null);
+      lastInteractionRef.current = null;
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
+
   // Dynamically fetch events for currentDate whenever it changes
   useEffect(() => {
     let active = true;
@@ -299,6 +317,10 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
   }, []);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    // Left-drag pans empty gutter; middle-drag pans anywhere (incl. over rows,
+    // since the row's pointerdown bails on non-left and lets this fire).
+    if (e.button !== 0 && e.button !== 1) return; // ignore right click
+    if (e.button === 1) e.preventDefault(); // suppress browser middle-click autoscroll
     if (activeModeRef.current !== 'NONE' || !scrollContainerRef.current) return;
     activeModeRef.current = 'PANNING';
     setIsPanning(true);
@@ -328,6 +350,7 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
   }, [totalSlots]);
 
   const startCardDrag = useCallback((e: React.PointerEvent, eventId: string) => {
+    if (e.button !== 0) return; // ignore right/middle click
     e.preventDefault(); e.stopPropagation();
     if (activeModeRef.current !== 'NONE' || !gridRef.current) return;
     activeModeRef.current = 'DRAGGING_CARD';
@@ -351,6 +374,7 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
   }, [captureMetrics]);
 
   const startCardResize = useCallback((e: React.PointerEvent, eventId: string, direction: 'left' | 'right') => {
+    if (e.button !== 0) return; // ignore right/middle click
     e.preventDefault(); e.stopPropagation();
     if (activeModeRef.current !== 'NONE' || !gridRef.current) return;
     activeModeRef.current = 'RESIZING_CARD';
@@ -375,6 +399,7 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
   }, [captureMetrics]);
 
   const handleRowPointerDown = useCallback((e: React.PointerEvent, resourceId: string) => {
+    if (e.button !== 0) return; // ignore right/middle click
     if (e.target !== e.currentTarget || !gridRef.current || activeModeRef.current !== 'NONE') return;
     e.preventDefault(); e.stopPropagation();
 
@@ -389,6 +414,7 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
   }, [captureMetrics]);
 
   const startRowDrag = useCallback((e: React.PointerEvent, resourceId: string) => {
+    if (e.button !== 0) return; // ignore right/middle click
     e.preventDefault(); e.stopPropagation();
     if (activeModeRef.current !== 'NONE') return;
     activeModeRef.current = 'DRAGGING_ROW';
@@ -670,6 +696,7 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
         <div
           ref={setScrollContainerRefs}
           className="absolute inset-0 flex overflow-auto select-none"
+          onContextMenu={(e) => e.preventDefault()}
           onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerLeave={handlePointerUp}
         >
           <ResourceSidebar
