@@ -38,6 +38,7 @@ interface TimelineGridProps {
   eventLanes: Record<string, number>;
   eventSpans: Record<string, { gridColumnStart: number; gridColumnEnd: number }>;
   eventsByResource: Record<string, EventItem[]>;
+  animateLayout: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -136,6 +137,7 @@ interface TimelineRowProps {
   virtualStart: number;
   virtualIndex: number;
   totalSlots: number;
+  hourWidth: number;
   bgEvenOdd: string;
   selectionForRow: Selection;
   dropIndicatorForRow: DropIndicator;
@@ -146,6 +148,7 @@ interface TimelineRowProps {
   isDraggingRow: boolean;
   showDropLine: boolean;
   dropLineBelow: boolean;
+  animateLayout: boolean;
   eventSpans: Record<string, { gridColumnStart: number; gridColumnEnd: number }>;
   eventLanes: Record<string, number>;
   draggedElementRef: React.RefObject<HTMLDivElement | null>;
@@ -157,12 +160,19 @@ interface TimelineRowProps {
 }
 
 const TimelineRow: React.FC<TimelineRowProps> = memo(({
-  resource, resourceEvents, rowHeight, virtualStart, virtualIndex, totalSlots, bgEvenOdd,
+  resource, resourceEvents, rowHeight, virtualStart, virtualIndex, totalSlots, hourWidth, bgEvenOdd,
   selectionForRow, dropIndicatorForRow, resizeIndicatorForRow, interactionEventId, isDragActive,
-  hasActiveCard, isDraggingRow, showDropLine, dropLineBelow,
+  hasActiveCard, isDraggingRow, showDropLine, dropLineBelow, animateLayout,
   eventSpans, eventLanes, draggedElementRef, draggedGridRowRef,
   startCardDrag, startCardResize, handleRowPointerDown, renderEvent,
 }) => {
+  // Vertical hour separators, drawn as a background gradient so they sit above
+  // the row stripe but below the event cards. One 1px line per hour column,
+  // aligned with the timeline header.
+  const gridLineImage = hourWidth > 0
+    ? `repeating-linear-gradient(to right, var(--grid-line) 0, var(--grid-line) 1px, transparent 1px, transparent ${hourWidth}px)`
+    : undefined;
+
   return (
     <div
       data-index={virtualIndex}
@@ -171,6 +181,7 @@ const TimelineRow: React.FC<TimelineRowProps> = memo(({
         top: 0, left: 0,
         height: `${rowHeight}px`,
         transform: `translateY(${virtualStart}px)`,
+        transition: animateLayout && !isDraggingRow ? "height 250ms ease, transform 250ms ease" : undefined,
         zIndex: isDraggingRow ? 50 : (hasActiveCard ? 40 : 1)
       }}
     >
@@ -180,7 +191,7 @@ const TimelineRow: React.FC<TimelineRowProps> = memo(({
           "border-b border-border absolute w-full h-full flex items-start transition-colors cursor-cell",
           isDraggingRow ? "opacity-30 bg-muted grayscale" : ""
         )}
-        style={{ backgroundColor: isDraggingRow ? undefined : bgEvenOdd }}
+        style={{ backgroundColor: isDraggingRow ? undefined : bgEvenOdd, backgroundImage: gridLineImage }}
       >
         <RowContent
           resource={resource} resourceEvents={resourceEvents} totalSlots={totalSlots} isClone={false}
@@ -196,7 +207,7 @@ const TimelineRow: React.FC<TimelineRowProps> = memo(({
         <div
           ref={draggedGridRowRef}
           className="border-b border-border absolute w-full h-full flex items-start opacity-100 border-primary/40 bg-primary/5 !transition-none pointer-events-none"
-          style={{ backgroundColor: bgEvenOdd, zIndex: 50 }}
+          style={{ backgroundColor: bgEvenOdd, backgroundImage: gridLineImage, zIndex: 50 }}
         >
           <RowContent
             resource={resource} resourceEvents={resourceEvents} totalSlots={totalSlots} isClone={true}
@@ -226,9 +237,13 @@ export const TimelineGrid: React.FC<TimelineGridProps> = memo(({
   selection, totalSlots,
   startCardDrag, startCardResize, handleRowPointerDown,
   renderEvent, interactionEventId,
-  virtualRows, totalSize, rowHeights, eventLanes, eventSpans, eventsByResource,
+  virtualRows, totalSize, rowHeights, eventLanes, eventSpans, eventsByResource, animateLayout,
 }) => {
   const isDragActive = dropIndicator !== null;
+  // Width of one hour column in px — used to position the vertical hour lines.
+  // Stable across pointer ticks (only changes on zoom), so it won't break the
+  // per-row memoization.
+  const hourWidth = totalHours > 0 ? totalWidth / totalHours : 0;
 
   return (
     <div
@@ -248,12 +263,6 @@ export const TimelineGrid: React.FC<TimelineGridProps> = memo(({
         </div>
 
         <div className="flex flex-col relative">
-          <div className="absolute inset-0 pointer-events-none flex z-[0]">
-            {hours.map((hour, idx) => (
-              <div key={`line-${hour}`} className="absolute h-full border-l border-border/40" style={{ left: `${(idx / totalHours) * 100}%` }} />
-            ))}
-          </div>
-
           <div style={{ height: `${totalSize}px`, width: '100%', position: 'relative' }}>
             {virtualRows.map((virtualRow) => {
               const resource = resources[virtualRow.index];
@@ -281,6 +290,7 @@ export const TimelineGrid: React.FC<TimelineGridProps> = memo(({
                   virtualStart={virtualRow.start}
                   virtualIndex={virtualRow.index}
                   totalSlots={totalSlots}
+                  hourWidth={hourWidth}
                   bgEvenOdd={bgEvenOdd}
                   selectionForRow={selectionForRow}
                   dropIndicatorForRow={dropIndicatorForRow}
@@ -291,6 +301,7 @@ export const TimelineGrid: React.FC<TimelineGridProps> = memo(({
                   isDraggingRow={isDraggingRow}
                   showDropLine={showDropLine}
                   dropLineBelow={dropLineBelow}
+                  animateLayout={animateLayout}
                   eventSpans={eventSpans}
                   eventLanes={eventLanes}
                   draggedElementRef={draggedElementRef}

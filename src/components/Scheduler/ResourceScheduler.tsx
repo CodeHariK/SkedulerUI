@@ -139,6 +139,21 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
   const [showJobCreationModal, setShowJobCreationModal] = useState(false);
   const [newEventData, setNewEventData] = useState<NewEventData | null>(null);
 
+  // Enables CSS transitions on row height/position for a short window after a
+  // layout-changing drop, so rows grow/shift smoothly. Kept time-boxed because
+  // the same row transform is driven by scrolling — a permanent transition
+  // would make normal scrolling feel laggy.
+  const [animateLayout, setAnimateLayout] = useState(false);
+  const animateTimeoutRef = useRef<number | null>(null);
+  const triggerLayoutAnimation = useCallback(() => {
+    setAnimateLayout(true);
+    if (animateTimeoutRef.current) window.clearTimeout(animateTimeoutRef.current);
+    animateTimeoutRef.current = window.setTimeout(() => setAnimateLayout(false), 260);
+  }, []);
+  useEffect(() => () => {
+    if (animateTimeoutRef.current) window.clearTimeout(animateTimeoutRef.current);
+  }, []);
+
   const checkAndSyncProps = useCallback(() => {
     if (activeModeRef.current === 'NONE') {
       if (areResourcesDifferent(resources, lastResourcesPropRef.current)) {
@@ -229,6 +244,16 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
     // events on other days.
   }, [localResources, dailyEvents, dayStartHour, totalHours, slotsPerHour]);
 
+  // Mirror the latest events + event spans in refs so the card drag/resize
+  // callbacks can stay referentially stable. Otherwise listing `localEvents` /
+  // `layoutEngine.eventSpans` as deps gives those callbacks a new identity on
+  // every event mutation or layout recompute, which breaks the memo on every
+  // visible TimelineRow and re-renders the whole viewport.
+  const localEventsRef = useRef(localEvents);
+  localEventsRef.current = localEvents;
+  const eventSpansRef = useRef(layoutEngine.eventSpans);
+  eventSpansRef.current = layoutEngine.eventSpans;
+
   const estimateSize = useCallback((index: number) => {
     const resource = localResources[index];
     if (!resource) return LAYOUT_CONSTANTS.ROW_MIN_HEIGHT;
@@ -309,10 +334,10 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
 
     captureMetrics();
 
-    const event = localEvents.find(evt => evt.id === eventId);
+    const event = localEventsRef.current.find(evt => evt.id === eventId);
     if (!event) { activeModeRef.current = 'NONE'; return; }
 
-    const span = layoutEngine.eventSpans[eventId] || { gridColumnStart: 1, gridColumnEnd: 1 };
+    const span = eventSpansRef.current[eventId] || { gridColumnStart: 1, gridColumnEnd: 1 };
     lastInteractionRef.current = { slot: span.gridColumnStart - 1, resourceId: event.resourceId };
 
     setInteraction({
@@ -323,7 +348,7 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
     });
 
     setDropIndicator({ resourceId: event.resourceId, startCol: span.gridColumnStart - 1, endCol: span.gridColumnEnd - 1 });
-  }, [localEvents, captureMetrics, layoutEngine.eventSpans]);
+  }, [captureMetrics]);
 
   const startCardResize = useCallback((e: React.PointerEvent, eventId: string, direction: 'left' | 'right') => {
     e.preventDefault(); e.stopPropagation();
@@ -332,10 +357,10 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
 
     captureMetrics();
 
-    const event = localEvents.find(evt => evt.id === eventId);
+    const event = localEventsRef.current.find(evt => evt.id === eventId);
     if (!event) { activeModeRef.current = 'NONE'; return; }
 
-    const span = layoutEngine.eventSpans[eventId] || { gridColumnStart: 1, gridColumnEnd: 1 };
+    const span = eventSpansRef.current[eventId] || { gridColumnStart: 1, gridColumnEnd: 1 };
     lastInteractionRef.current = { slot: direction === 'left' ? span.gridColumnStart - 1 : span.gridColumnEnd - 1 };
 
     setInteraction({
@@ -347,7 +372,7 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
     });
 
     setResizeIndicator({ eventId, startCol: span.gridColumnStart - 1, endCol: span.gridColumnEnd - 1 });
-  }, [localEvents, captureMetrics, layoutEngine.eventSpans]);
+  }, [captureMetrics]);
 
   const handleRowPointerDown = useCallback((e: React.PointerEvent, resourceId: string) => {
     if (e.target !== e.currentTarget || !gridRef.current || activeModeRef.current !== 'NONE') return;
@@ -583,10 +608,14 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
       setSelection(null);
     }
 
+    // A card move, resize, or row reorder can change row heights — animate the
+    // resulting layout shift for one short window.
+    triggerLayoutAnimation();
+
     activeModeRef.current = 'NONE';
     lastInteractionRef.current = null;
     checkAndSyncProps();
-  }, [interaction, dropIndicator, resizeIndicator, localEvents, localResources, currentDate, dayStartHour, slotsPerHour, onEventChange, onResourcesReorder, selection, rowDrag, rowDropIndicator, checkAndSyncProps]);
+  }, [interaction, dropIndicator, resizeIndicator, localEvents, localResources, currentDate, dayStartHour, slotsPerHour, onEventChange, onResourcesReorder, selection, rowDrag, rowDropIndicator, checkAndSyncProps, triggerLayoutAnimation]);
 
   const handleCreateJobHeader = useCallback(() => {
     setNewEventData({
@@ -618,10 +647,11 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
       };
       setLocalEvents(prev => [...prev, newlyCreatedEvent]);
       if (onEventAdd) onEventAdd(newlyCreatedEvent);
+      triggerLayoutAnimation();
     }
     setShowJobCreationModal(false);
     setNewEventData(null);
-  }, [newEventData, onEventAdd]);
+  }, [newEventData, onEventAdd, triggerLayoutAnimation]);
 
   const setScrollContainerRefs = useCallback((node: HTMLDivElement | null) => {
     if (node) { scrollContainerRef.current = node; setScrollElement(node); }
@@ -671,6 +701,7 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
             renderEvent={renderEvent} interactionEventId={interaction?.eventId}
             rowHeights={layoutEngine.rowHeights} eventLanes={layoutEngine.eventLanes}
             eventSpans={layoutEngine.eventSpans} eventsByResource={layoutEngine.eventsByResource}
+            animateLayout={animateLayout}
           />
         </div>
       </div>

@@ -94,6 +94,7 @@
   --sidebar-ring: #2563eb;
   --row-bg-even: #fafafa;
   --row-bg-odd: #f7f7f7;
+  --grid-line: #e9eaee;
 }
 
 .dark {
@@ -134,6 +135,7 @@
   --border-disabled: #364153;
   --row-bg-even: #151f30;
   --row-bg-odd: #101828;
+  --grid-line: #2a3548;
 }
 
 @layer base {
