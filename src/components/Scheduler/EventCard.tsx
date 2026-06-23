@@ -26,30 +26,36 @@ export const EventCard: React.FC<EventCardProps> = React.memo(({
   const price = event.metadata?.price || 0;
 
   const [isHovering, setIsHovering] = useState(false);
-  const hoverTimeoutRef = useRef<number | null>(null);
+  const openTimerRef = useRef<number | null>(null);
+  const closeTimerRef = useRef<number | null>(null);
 
-  // Clean up timeout on unmount to prevent leaks
-  useEffect(() => {
-    return () => {
-      if (hoverTimeoutRef.current) {
-        window.clearTimeout(hoverTimeoutRef.current);
-      }
-    };
-  }, []);
+  const clearTimers = () => {
+    if (openTimerRef.current) window.clearTimeout(openTimerRef.current);
+    if (closeTimerRef.current) window.clearTimeout(closeTimerRef.current);
+  };
 
+  // Clean up timers on unmount to prevent leaks
+  useEffect(() => () => clearTimers(), []);
+
+  // Shared by the card and the popover so the cursor can cross the gap onto the
+  // popover without it closing.
   const handlePointerEnter = () => {
-    if (hoverTimeoutRef.current) window.clearTimeout(hoverTimeoutRef.current);
-    hoverTimeoutRef.current = window.setTimeout(() => {
-      setIsHovering(true);
-    }, 250); // 250ms debounce prevents portal leaks during scrolling
+    if (closeTimerRef.current) {
+      window.clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+    if (isHovering) return;
+    // 250ms debounce prevents portal leaks during scrolling
+    openTimerRef.current = window.setTimeout(() => setIsHovering(true), 250);
   };
 
   const handlePointerLeave = () => {
-    if (hoverTimeoutRef.current) {
-      window.clearTimeout(hoverTimeoutRef.current);
-      hoverTimeoutRef.current = null;
+    if (openTimerRef.current) {
+      window.clearTimeout(openTimerRef.current);
+      openTimerRef.current = null;
     }
-    setIsHovering(false);
+    // Brief close delay so the cursor can travel from the card onto the popover.
+    closeTimerRef.current = window.setTimeout(() => setIsHovering(false), 120);
   };
 
   const formatFullTime = (start: Date, end: Date) => {
@@ -76,7 +82,7 @@ export const EventCard: React.FC<EventCardProps> = React.memo(({
           onPointerEnter={handlePointerEnter}
           onPointerLeave={handlePointerLeave}
           onPointerDown={(e) => {
-            if (hoverTimeoutRef.current) window.clearTimeout(hoverTimeoutRef.current);
+            clearTimers();
             setIsHovering(false);
             onDragStart(e, event.id);
           }}
@@ -86,7 +92,7 @@ export const EventCard: React.FC<EventCardProps> = React.memo(({
             className="absolute left-0 top-0 w-2.5 h-full cursor-ew-resize z-20 flex items-center justify-start rounded-l-xl opacity-0 group-hover:opacity-100 transition-opacity"
             onPointerDown={(e) => {
               e.stopPropagation();
-              if (hoverTimeoutRef.current) window.clearTimeout(hoverTimeoutRef.current);
+              clearTimers();
               setIsHovering(false);
               onResizeStart(e, event.id, 'left');
             }}
@@ -99,7 +105,7 @@ export const EventCard: React.FC<EventCardProps> = React.memo(({
             className="absolute right-0 top-0 w-2.5 h-full cursor-ew-resize z-20 flex items-center justify-end rounded-r-xl opacity-0 group-hover:opacity-100 transition-opacity"
             onPointerDown={(e) => {
               e.stopPropagation();
-              if (hoverTimeoutRef.current) window.clearTimeout(hoverTimeoutRef.current);
+              clearTimers();
               setIsHovering(false);
               onResizeStart(e, event.id, 'right');
             }}
