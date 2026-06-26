@@ -1,7 +1,7 @@
 import React from 'react';
 import type { Resource } from './types';
-import { cn } from '@/lib/utils';
-import { Calendar, GripVertical } from 'lucide-react';
+import { cn } from '@/lib/cn';
+import { SUICoreIcon, SUICoreBodyText } from '@/components/sui';
 
 interface ResourceCardProps {
   resource: Resource;
@@ -21,27 +21,27 @@ export const ResourceCard: React.FC<ResourceCardProps> = React.memo(({ resource,
   return (
     <>
       <div
-        className="text-muted-foreground/40 cursor-grab touch-none hover:text-text-primary rounded hover:bg-muted/50 transition-all duration-200 ease-in-out w-0 opacity-0 overflow-hidden group-hover:w-7 group-hover:opacity-100 flex items-center justify-center shrink-0"
+        className="text-fg-tertiary/50 cursor-grab touch-none hover:text-fg-primary rounded hover:bg-neutral-100 transition-all duration-200 ease-in-out w-0 opacity-0 overflow-hidden group-hover:w-7 group-hover:opacity-100 flex items-center justify-center shrink-0"
         onPointerDown={onGripMouseDown}
       >
-        <GripVertical className="size-4" />
+        <SUICoreIcon name="gripVertical" size="sm" />
       </div>
       <div className={cn(
-        "flex items-center justify-center w-9 h-9 rounded-full font-bold text-sm border shrink-0",
-        role === 'ELECTRICAL' && "bg-[#FEF6F5] text-[#CF4523] border-[#FCDFD4]",
-        role === 'PLUMBING' && "bg-[#F3F8FF] text-[#1D4ED8] border-[#DBEAFE]",
-        role === 'HVAC' && "bg-[#EEFAFC] text-[#1E7BAF] border-[#C1E7EF]",
-        role === 'UNASSIGNED' && "bg-[#F3F4F6] text-[#6A7282] border-[#E5E7EB]",
-        !['ELECTRICAL', 'PLUMBING', 'HVAC', 'UNASSIGNED'].includes(role) && "bg-secondary text-secondary-foreground border-transparent"
+        "flex items-center justify-center w-9 h-9 rounded-full font-bold text-body-sm border shrink-0",
+        role === 'ELECTRICAL' && "bg-trade-electrical-bg text-trade-electrical border-trade-electrical-ring",
+        role === 'PLUMBING' && "bg-trade-plumbing-bg text-trade-plumbing border-trade-plumbing-ring",
+        role === 'HVAC' && "bg-trade-hvac-bg text-trade-hvac border-trade-hvac-ring",
+        role === 'UNASSIGNED' && "bg-trade-unassigned-bg text-trade-unassigned border-trade-unassigned-ring",
+        !['ELECTRICAL', 'PLUMBING', 'HVAC', 'UNASSIGNED'].includes(role) && "bg-neutral-100 text-fg-secondary border-transparent"
       )}>
         {resource.avatar || resource.name.slice(0, 2).toUpperCase()}
       </div>
       <div className="flex-1 min-w-0">
-        <h3 className="font-semibold text-text-primary text-sm truncate">{resource.name}</h3>
+        <SUICoreBodyText size="sm" weight="bold" className="truncate">{resource.name}</SUICoreBodyText>
         <div className="flex items-center gap-1.5 mt-1 flex-nowrap overflow-hidden">
-          {role && (<span className="text-[12px] tracking-wider text-text-tertiary uppercase shrink-0">{role}</span>)}
+          {role && (<span className="text-body-xs tracking-wider text-fg-tertiary uppercase shrink-0">{role}</span>)}
           {jobsCount > 0 && (
-            <span className="flex items-center gap-1 text-[10px] text-text-secondary font-medium shrink-0"><Calendar className="w-3 h-3" />
+            <span className="flex items-center gap-1 text-body-2xs text-fg-secondary font-medium shrink-0"><SUICoreIcon name="calendar" size="xs" />
               {jobsCount} {jobsCount === 1 ? 'Job' : 'Jobs'}
             </span>)}
         </div>

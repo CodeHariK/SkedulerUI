@@ -1,12 +1,15 @@
 import React from 'react';
 import type { Resource, EventItem } from './types';
-import { cn } from '@/lib/utils';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
-import { PopoverContent } from '@/components/ui/popover';
-import { MapPin, Eye, EyeOff } from 'lucide-react';
-import { STATUS_COLORS, getIsDispatched, formatJobNumber } from './constants';
+import { cn } from '@/lib/cn';
+import {
+  SUICoreBadge,
+  SUICoreButton,
+  SUICoreSeparator,
+  SUICorePopoverContent,
+  SUICoreBodyText,
+  SUICoreIcon,
+} from '@/components/sui';
+import { STATUS_BADGE_VARIANT, getIsDispatched, formatJobNumber } from './constants';
 
 interface EventDetailPopoverProps {
   event: EventItem;
@@ -24,19 +27,19 @@ export const EventDetailPopover: React.FC<EventDetailPopoverProps> = ({
   const location = event.metadata?.location || '';
   const price = event.metadata?.price || 0;
 
-  const formatFullTime = (start: Date, end: Date) => {
-    return `${start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} — ${end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-  };
+  const formatFullTime = (start: Date, end: Date) =>
+    `${start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} — ${end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
 
   const isDispatched = getIsDispatched(event);
-  const isElectrical = resource?.metadata?.role === 'ELECTRICAL';
-  const avatarBg = isElectrical 
-    ? 'bg-[#FEF6F5] text-[#CF4523] border-[#FCDFD4]' 
-    : 'bg-[#F3F8FF] text-[#1D4ED8] border-[#DBEAFE]';
+  const role = resource?.metadata?.role;
+  const avatarBg =
+    role === 'ELECTRICAL'
+      ? 'bg-trade-electrical-bg text-trade-electrical border-trade-electrical-ring'
+      : 'bg-trade-plumbing-bg text-trade-plumbing border-trade-plumbing-ring';
 
   return (
-    <PopoverContent 
-      className="w-[320px] p-5 bg-white dark:bg-[#1c1c1c] border border-border/70 shadow-xl rounded-2xl z-50 flex flex-col gap-4 select-none"
+    <SUICorePopoverContent
+      className="w-[320px] p-5 rounded-card flex flex-col gap-4 select-none"
       side="bottom"
       align="start"
       onPointerEnter={onPointerEnter}
@@ -44,66 +47,57 @@ export const EventDetailPopover: React.FC<EventDetailPopoverProps> = ({
     >
       <div className="flex justify-between items-start gap-4">
         <div className="min-w-0">
-          <h3 className="font-bold text-text-primary text-base leading-snug">{event.title}</h3>
-          <p className="text-[11px] text-text-tertiary mt-1 font-medium">
+          <SUICoreBodyText size="md" weight="bold" className="leading-snug">{event.title}</SUICoreBodyText>
+          <SUICoreBodyText size="2xs" tone="muted" weight="medium" className="mt-1">
             JOB #{formatJobNumber(event.id)} • Compliance
-          </p>
+          </SUICoreBodyText>
         </div>
-        <Badge variant="outline" className={cn("text-xs font-semibold px-3 py-0.5 rounded-full border-none whitespace-nowrap", STATUS_COLORS[event.status] || "bg-muted text-muted-foreground")}>
-          {event.status}
-        </Badge>
+        <SUICoreBadge variant={STATUS_BADGE_VARIANT[event.status]} text={event.status} className="whitespace-nowrap" />
       </div>
 
       {location && (
-        <div className="flex items-center gap-1.5 text-xs text-text-secondary font-medium">
-          <MapPin className="w-3.5 h-3.5 text-text-tertiary shrink-0" />
+        <div className="flex items-center gap-1.5 text-body-xs text-fg-secondary font-medium">
+          <SUICoreIcon name="mapPin" size="xs" className="text-fg-tertiary shrink-0" />
           <span>{location}</span>
         </div>
       )}
 
-      <Separator className="bg-border/60" />
+      <SUICoreSeparator />
 
-      <div className="flex flex-col gap-3.5 text-xs font-medium">
+      <div className="flex flex-col gap-3.5 text-body-xs font-medium">
         <div className="flex justify-between items-center gap-2">
-          <span className="text-text-tertiary">Time</span>
-          <span className="font-semibold text-text-primary">{formatFullTime(event.startTime, event.endTime)}</span>
+          <span className="text-fg-tertiary">Time</span>
+          <span className="font-semibold text-fg-primary">{formatFullTime(event.startTime, event.endTime)}</span>
         </div>
 
         <div className="flex justify-between items-center gap-2">
-          <span className="text-text-tertiary">Technician</span>
+          <span className="text-fg-tertiary">Technician</span>
           <div className="flex items-center gap-2">
-            <div className={cn("flex items-center justify-center w-6 h-6 rounded-full font-bold text-[9px] border shrink-0", avatarBg)}>
-              {resource ? (resource.avatar || resource.name.slice(0, 2).toUpperCase()) : 'UN'}
+            <div className={cn('flex items-center justify-center w-6 h-6 rounded-full font-bold text-body-2xs border shrink-0', avatarBg)}>
+              {resource ? resource.avatar || resource.name.slice(0, 2).toUpperCase() : 'UN'}
             </div>
-            <span className="font-semibold text-text-primary">{resource ? resource.name : 'Unassigned'}</span>
+            <span className="font-semibold text-fg-primary">{resource ? resource.name : 'Unassigned'}</span>
           </div>
         </div>
 
         <div className="flex justify-between items-center gap-2">
-          <span className="text-text-tertiary">Callout fee</span>
-          <span className="font-semibold text-text-primary">${price}</span>
+          <span className="text-fg-tertiary">Callout fee</span>
+          <span className="font-semibold text-fg-primary">${price}</span>
         </div>
 
         <div className="flex justify-between items-center gap-2">
-          <span className="text-text-tertiary">Dispatch</span>
-          {isDispatched ? (
-            <div className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-semibold">
-              <Eye className="w-3.5 h-3.5" />
-              <span>Dispatched</span>
-            </div>
-          ) : (
-            <div className="flex items-center gap-1 text-orange-500 dark:text-orange-400 font-semibold">
-              <EyeOff className="w-3.5 h-3.5" />
-              <span>Pending</span>
-            </div>
-          )}
+          <span className="text-fg-tertiary">Dispatch</span>
+          <div className={cn('flex items-center gap-1 font-semibold', isDispatched ? 'text-success-500' : 'text-warning-500')}>
+            <SUICoreIcon name={isDispatched ? 'eye' : 'eyeOff'} size="xs" />
+            <span>{isDispatched ? 'Dispatched' : 'Pending'}</span>
+          </div>
         </div>
       </div>
 
       <div className="flex gap-2.5 mt-2">
-        <Button className="flex-1 bg-[#2563eb] hover:bg-[#1d4ed8] text-white rounded-full font-medium h-9 text-xs">View Job</Button>
-        <Button variant="outline" className="flex-1 border-border/80 hover:bg-muted text-text-primary rounded-full font-medium h-9 text-xs">Reschedule</Button>
+        <SUICoreButton variant="primary" width="full" text="View Job" className="flex-1" />
+        <SUICoreButton variant="outline" width="full" text="Reschedule" className="flex-1" />
       </div>
-    </PopoverContent>
+    </SUICorePopoverContent>
   );
 };

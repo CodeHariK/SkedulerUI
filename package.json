@@ -1,13 +1,36 @@
 {
-  "name": "skedulerui",
-  "private": true,
-  "version": "0.0.0",
+  "name": "skeduler-ui",
+  "private": false,
+  "version": "0.1.0",
   "type": "module",
+  "description": "A generalized resource scheduling timeline component for React.",
+  "license": "MIT",
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "files": [
+    "dist-lib"
+  ],
+  "main": "./dist-lib/skeduler-ui.js",
+  "module": "./dist-lib/skeduler-ui.js",
+  "types": "./dist-lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist-lib/index.d.ts",
+      "import": "./dist-lib/skeduler-ui.js"
+    },
+    "./styles.css": "./dist-lib/skeduler-ui.css"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:lib": "tsc -b && vite build --config vite.lib.config.ts",
     "lint": "eslint .",
     "preview": "vite preview"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18"
   },
   "dependencies": {
     "@fontsource-variable/geist": "^5.2.9",
@@ -42,6 +65,7 @@
     "tailwindcss": "^4.3.1",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.59.2",
-    "vite": "^8.0.12"
+    "vite": "^8.0.12",
+    "vite-plugin-dts": "^4.5.4"
   }
 }

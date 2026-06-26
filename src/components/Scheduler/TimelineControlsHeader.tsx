@@ -1,21 +1,13 @@
 import React from 'react';
 import {
-  Map,
-  Calendar as CalendarIcon,
-  ChevronLeft,
-  ChevronRight,
-  ChevronDown,
-  Minus,
-  Plus,
-  Sun,
-  Moon,
-  LayoutTemplate,
-  UserPlus
-} from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { Calendar } from '@/components/ui/calendar';
-import { Button } from '@/components/ui/button';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+  SUICoreButton,
+  SUICoreBodyText,
+  SUICorePopover,
+  SUICorePopoverTrigger,
+  SUICorePopoverContent,
+  SUICoreDatePicker,
+} from '@/components/sui';
+import { MIN_ZOOM, MAX_ZOOM, nextZoom, prevZoom } from './_lib/zoom';
 
 interface TimelineControlsHeaderProps {
   currentDate: Date;
@@ -44,263 +36,96 @@ export const TimelineControlsHeader: React.FC<TimelineControlsHeaderProps> = Rea
   onMapViewToggle,
   theme,
   onThemeToggle,
-  onOpenTemplates
+  onOpenTemplates,
 }) => {
-  // Format current date display (e.g. "March 16, 2026")
-  const formatDateLabel = (date: Date) => {
-    return date.toLocaleDateString('en-US', {
-      month: 'long',
-      day: 'numeric',
-      year: 'numeric'
-    });
-  };
+  const formatDateLabel = (date: Date) =>
+    date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 
   const handlePrevDay = () => {
-    const prevDate = new Date(currentDate);
-    prevDate.setDate(currentDate.getDate() - 1);
-    onDateChange(prevDate);
+    const d = new Date(currentDate);
+    d.setDate(currentDate.getDate() - 1);
+    onDateChange(d);
   };
 
   const handleNextDay = () => {
-    const nextDate = new Date(currentDate);
-    nextDate.setDate(currentDate.getDate() + 1);
-    onDateChange(nextDate);
+    const d = new Date(currentDate);
+    d.setDate(currentDate.getDate() + 1);
+    onDateChange(d);
   };
 
-  const handleToday = () => {
-    onDateChange(new Date(2026, 5, 18)); // keeping standard mockDate consistent
-  };
+  const handleToday = () => onDateChange(new Date(2026, 5, 18)); // keep standard mock date
 
-  const increaseZoom = () => {
-    // e.g. increase granularity to next levels: 15m -> 30m -> 45m -> 60m -> 90m -> 120m
-    const zoomSteps = [15, 30, 45, 60, 90, 120];
-    const currentIndex = zoomSteps.indexOf(zoomMinutes);
-    if (currentIndex !== -1 && currentIndex < zoomSteps.length - 1) {
-      onZoomChange(zoomSteps[currentIndex + 1]);
-    }
-  };
-
-  const decreaseZoom = () => {
-    const zoomSteps = [15, 30, 45, 60, 90, 120];
-    const currentIndex = zoomSteps.indexOf(zoomMinutes);
-    if (currentIndex > 0) {
-      onZoomChange(zoomSteps[currentIndex - 1]);
-    }
+  const stepZoom = (dir: 1 | -1) => {
+    onZoomChange(dir === 1 ? nextZoom(zoomMinutes) : prevZoom(zoomMinutes));
   };
 
   const [calendarMonth, setCalendarMonth] = React.useState<Date>(currentDate);
-
-  React.useEffect(() => {
-    setCalendarMonth(currentDate);
-  }, [currentDate]);
+  React.useEffect(() => setCalendarMonth(currentDate), [currentDate]);
 
   return (
-    <div
-      className="bg-white dark:bg-[#141414] border-b border-[#e5e7eb] dark:border-[#2a2a2a] flex flex-col md:flex-row items-center justify-between gap-4 px-5 py-3 w-full transition-colors duration-200 select-none"
-      data-node-id="3603:12056"
-    >
-      {/* Left: Map View Toggle Button */}
-      <div className="flex items-center w-full md:w-[240px] shrink-0" data-node-id="3603:12057">
-        <Button
+    <div className="bg-white dark:bg-[#141414] border-b border-neutral-200 dark:border-[#2a2a2a] flex flex-col md:flex-row items-center justify-between gap-4 px-5 py-3 w-full transition-colors duration-200 select-none">
+      {/* Left: Map View toggle */}
+      <div className="flex items-center w-full md:w-[240px] shrink-0">
+        <SUICoreButton
+          variant={isMapViewActive ? 'secondary' : 'outline'}
+          icon="map"
+          text="Map View"
           onClick={onMapViewToggle}
-          variant="outline"
-          className={cn(
-            "bg-white dark:bg-[#1c1c1c] border border-[#e5e7eb] dark:border-[#2a2a2a] hover:bg-[#fafafa] dark:hover:bg-[#252525] rounded-full h-auto px-3.5 py-1.5 flex gap-2 items-center justify-center cursor-pointer transition-all duration-200 shadow-xs active:scale-[0.98]",
-            isMapViewActive && "border-green-500/40 bg-green-50/20 dark:bg-green-950/10"
-          )}
-          data-node-id="3330:25089"
-        >
-          <div className="flex gap-2.5 items-center">
-            {/* Status indicator dot */}
-            <div
-              className={cn(
-                "rounded-full size-2 transition-all duration-300",
-                isMapViewActive
-                  ? "bg-[#22c55e] border border-green-500/40 animate-pulse"
-                  : "bg-gray-300 dark:bg-gray-700 border border-transparent"
-              )}
-              data-node-id="3330:25084"
-            />
-            <Map className="size-4 text-[#364153] dark:text-[#a0aec0]" />
-          </div>
-          <span className="font-['Satoshi'] font-medium text-[14px] leading-[20px] text-[#364153] dark:text-[#cbd5e1]">
-            Map View
-          </span>
-        </Button>
+        />
       </div>
 
-      {/* Center: Date Selection Controls */}
-      <div className="flex items-center gap-2.5" data-node-id="3603:12059">
+      {/* Center: Date controls */}
+      <div className="flex items-center gap-2.5">
         <div className="flex gap-2 items-center">
-          {/* Left Arrow Button */}
-          <Button
-            onClick={handlePrevDay}
-            variant="outline"
-            size="icon"
-            className="bg-white dark:bg-[#1c1c1c] border border-[#e5e7eb] dark:border-[#2a2a2a] hover:bg-[#fafafa] dark:hover:bg-[#252525] rounded-full size-8 flex items-center justify-center cursor-pointer transition-all duration-200 shadow-xs active:scale-90"
-            data-node-id="3338:6738"
-          >
-            <ChevronLeft className="size-4 text-[#364153] dark:text-[#a0aec0]" />
-          </Button>
+          <SUICoreButton variant="outline" size="sm" icon="chevronLeft" iconOnly aria-label="Previous day" onClick={handlePrevDay} />
 
-          {/* Date Picker Button with Shadcn Calendar */}
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                className="bg-white dark:bg-[#1c1c1c] border border-[#e5e7eb] dark:border-[#2a2a2a] hover:bg-[#fafafa] dark:hover:bg-[#252525] rounded-full h-auto px-3.5 py-1.5 flex gap-2 items-center cursor-pointer shadow-xs active:scale-[0.98] transition-all"
-                data-node-id="3338:6739"
-              >
-                <CalendarIcon className="size-4 text-[#364153] dark:text-[#a0aec0]" />
-                <span className="font-['Satoshi'] font-medium text-[14px] leading-[20px] text-[#364153] dark:text-[#cbd5e1]">
-                  {formatDateLabel(currentDate)}
-                </span>
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0 border border-border bg-card shadow-md rounded-xl" align="center">
-              <Calendar
-                mode="single"
-                selected={currentDate}
-                onSelect={(date) => date && onDateChange(date)}
+          <SUICorePopover>
+            <SUICorePopoverTrigger asChild>
+              <SUICoreButton variant="outline" icon="calendar" text={formatDateLabel(currentDate)} />
+            </SUICorePopoverTrigger>
+            <SUICorePopoverContent className="w-auto p-0" align="center">
+              <SUICoreDatePicker
+                value={currentDate}
+                onChange={(d) => d && onDateChange(d)}
                 month={calendarMonth}
                 onMonthChange={setCalendarMonth}
               />
-            </PopoverContent>
-          </Popover>
+            </SUICorePopoverContent>
+          </SUICorePopover>
 
-          {/* Right Arrow Button */}
-          <Button
-            onClick={handleNextDay}
-            variant="outline"
-            size="icon"
-            className="bg-white dark:bg-[#1c1c1c] border border-[#e5e7eb] dark:border-[#2a2a2a] hover:bg-[#fafafa] dark:hover:bg-[#252525] rounded-full size-8 flex items-center justify-center cursor-pointer transition-all duration-200 shadow-xs active:scale-90"
-            data-node-id="3338:6740"
-          >
-            <ChevronRight className="size-4 text-[#364153] dark:text-[#a0aec0]" />
-          </Button>
+          <SUICoreButton variant="outline" size="sm" icon="chevronRight" iconOnly aria-label="Next day" onClick={handleNextDay} />
         </div>
 
-        {/* Today Button Dropdown */}
-        <Button
-          onClick={handleToday}
-          variant="outline"
-          className="bg-white dark:bg-[#1c1c1c] border border-[#e5e7eb] dark:border-[#2a2a2a] hover:bg-[#fafafa] dark:hover:bg-[#252525] rounded-full h-auto px-3.5 py-1.5 flex gap-1.5 items-center cursor-pointer transition-all duration-200 shadow-xs active:scale-[0.98]"
-          data-node-id="3603:12061"
-        >
-          <span className="font-['Satoshi'] font-medium text-[14px] leading-[20px] text-[#364153] dark:text-[#cbd5e1]">
-            Today
-          </span>
-          <ChevronDown className="size-4 text-[#364153] dark:text-[#a0aec0]" />
-        </Button>
+        <SUICoreButton variant="outline" text="Today" trailingIcon="chevronDown" onClick={handleToday} />
       </div>
 
-      {/* Right: Zoom Controls, Reset, Create, Theme */}
-      <div className="flex items-center gap-2 justify-end w-full md:w-auto flex-wrap" data-node-id="3603:12062">
-        {/* Zoom Selector */}
-        <div
-          className="bg-white dark:bg-[#1c1c1c] border border-[#e5e7eb] dark:border-[#2a2a2a] rounded-full p-1.5 flex gap-2 items-center shadow-xs"
-          data-node-id="3603:12063"
-        >
-          <Button
-            onClick={decreaseZoom}
-            disabled={zoomMinutes <= 15}
-            variant="ghost"
-            size="icon"
-            className="hover:bg-[#fafafa] dark:hover:bg-[#252525] rounded-full size-6 p-1 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-          >
-            <Minus className="size-4 text-[#364153] dark:text-[#a0aec0]" />
-          </Button>
-
-          <span className="font-['Satoshi'] font-medium text-[14px] leading-[20px] text-[#364153] dark:text-[#cbd5e1] min-w-[50px] text-center">
+      {/* Right: Zoom, Reset, Add Technician, Create, Template, Theme */}
+      <div className="flex items-center gap-2 justify-end w-full md:w-auto flex-wrap">
+        <div className="bg-white dark:bg-[#1c1c1c] border border-neutral-200 dark:border-[#2a2a2a] rounded-pill p-1.5 flex gap-2 items-center shadow-xs">
+          <SUICoreButton variant="ghost" size="sm" icon="minus" iconOnly aria-label="Decrease zoom" disabled={zoomMinutes <= MIN_ZOOM} onClick={() => stepZoom(-1)} />
+          <SUICoreBodyText as="span" size="sm" tone="secondary" className="min-w-[50px] text-center">
             {zoomMinutes} min
-          </span>
-
-          <Button
-            onClick={increaseZoom}
-            disabled={zoomMinutes >= 120}
-            variant="ghost"
-            size="icon"
-            className="hover:bg-[#fafafa] dark:hover:bg-[#252525] rounded-full size-6 p-1 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-          >
-            <Plus className="size-4 text-[#364153] dark:text-[#a0aec0]" />
-          </Button>
+          </SUICoreBodyText>
+          <SUICoreButton variant="ghost" size="sm" icon="plus" iconOnly aria-label="Increase zoom" disabled={zoomMinutes >= MAX_ZOOM} onClick={() => stepZoom(1)} />
         </div>
 
-        {/* Reset Button */}
-        <Button
-          onClick={onReset}
-          variant="outline"
-          className="bg-white dark:bg-[#1c1c1c] border border-[#e5e7eb] dark:border-[#2a2a2a] hover:bg-[#fafafa] dark:hover:bg-[#252525] rounded-full h-auto px-3.5 py-1.5 cursor-pointer text-center transition-all duration-200 shadow-xs active:scale-[0.98]"
-          data-node-id="3603:12064"
-        >
-          <span className="font-['Satoshi'] font-medium text-[14px] leading-[20px] text-[#364153] dark:text-[#cbd5e1]">
-            Reset
-          </span>
-        </Button>
+        <SUICoreButton variant="outline" text="Reset" onClick={onReset} />
 
-        {/* Add Technician Button */}
         {onAddTechnician && (
-          <Button
-            onClick={onAddTechnician}
-            variant="outline"
-            className="bg-white dark:bg-[#1c1c1c] border border-[#e5e7eb] dark:border-[#2a2a2a] hover:bg-[#fafafa] dark:hover:bg-[#252525] rounded-full h-auto px-3.5 py-1.5 flex gap-1.5 items-center cursor-pointer transition-all duration-200 shadow-xs active:scale-[0.98]"
-          >
-            <UserPlus className="size-4 text-[#364153] dark:text-[#a0aec0]" />
-            <span className="font-['Satoshi'] font-medium text-[14px] leading-[20px] text-[#364153] dark:text-[#cbd5e1]">
-              Add Technician
-            </span>
-          </Button>
+          <SUICoreButton variant="outline" icon="userPlus" text="Add Technician" onClick={onAddTechnician} />
         )}
 
-        {/* Create Dropdown Button */}
-        <Button
-          onClick={onCreateJob}
-          className="bg-[#2563eb] hover:bg-[#1d4ed8] text-white rounded-full h-auto px-3.5 py-1.5 flex gap-1.5 items-center cursor-pointer transition-all duration-200 shadow-sm active:scale-[0.98] border border-transparent font-medium"
-          data-node-id="3603:12065"
-        >
-          <Plus className="size-4 text-white" />
-          <span className="font-['Satoshi'] font-medium text-[14px] leading-[20px] text-white">
-            Create
-          </span>
-          <ChevronDown className="size-4 text-white/80" />
-        </Button>
+        <SUICoreButton variant="primary" icon="plus" text="Create" trailingIcon="chevronDown" onClick={onCreateJob} />
 
-        {/* Template Button */}
-        <Button
-          onClick={onOpenTemplates}
+        <SUICoreButton variant="outline" icon="layoutTemplate" text="Template" onClick={onOpenTemplates} />
+
+        <SUICoreButton
           variant="outline"
-          className="bg-white dark:bg-[#1c1c1c] border border-[#e5e7eb] dark:border-[#2a2a2a] hover:bg-[#fafafa] dark:hover:bg-[#252525] rounded-full h-auto px-3.5 py-1.5 flex gap-1.5 items-center cursor-pointer transition-all duration-200 shadow-xs active:scale-[0.98]"
-        >
-          <LayoutTemplate className="size-4 text-[#364153] dark:text-[#a0aec0]" />
-          <span className="font-['Satoshi'] font-medium text-[14px] leading-[20px] text-[#364153] dark:text-[#cbd5e1]">
-            Template
-          </span>
-        </Button>
-
-        {/* Theme Button */}
-        <Button
+          icon={theme === 'light' ? 'sun' : 'moon'}
+          text={theme === 'light' ? 'Light' : 'Dark'}
+          trailingIcon="chevronDown"
           onClick={onThemeToggle}
-          variant="outline"
-          className="bg-white dark:bg-[#1c1c1c] border border-[#e5e7eb] dark:border-[#2a2a2a] hover:bg-[#fafafa] dark:hover:bg-[#252525] rounded-full h-auto px-3.5 py-1.5 flex gap-1.5 items-center cursor-pointer transition-all duration-200 shadow-xs active:scale-[0.98]"
-          data-node-id="3603:12066"
-        >
-          {theme === 'light' ? (
-            <>
-              <Sun className="size-4 text-amber-500 animate-spin-slow" />
-              <span className="font-['Satoshi'] font-medium text-[14px] leading-[20px] text-[#364153] dark:text-[#cbd5e1]">
-                Light
-              </span>
-            </>
-          ) : (
-            <>
-              <Moon className="size-4 text-indigo-400" />
-              <span className="font-['Satoshi'] font-medium text-[14px] leading-[20px] text-[#cbd5e1]">
-                Dark
-              </span>
-            </>
-          )}
-          <ChevronDown className="size-4 text-[#364153] dark:text-[#a0aec0]" />
-        </Button>
+        />
       </div>
     </div>
   );

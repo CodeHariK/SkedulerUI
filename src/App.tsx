@@ -5,6 +5,7 @@ import { TemplateDialog } from './components/Scheduler/TemplateDialog';
 import type { Resource, SchedulerTemplate } from './components/Scheduler/types';
 import { generateStressTestData } from '@/lib/stressMockData';
 import { fetchSchedulerDataByDate, saveEventToDatabase } from '@/lib/schedulerService';
+import { SUICoreSelect, SUICoreHeading, SUICoreBodyText } from '@/components/sui';
 import { Toaster } from '@/components/ui/sonner';
 
 // Fallback view used only when no template is active (e.g. all templates
@@ -169,17 +170,19 @@ function App() {
                   <span><strong>Stress Test Mode:</strong> Rendering <strong>{stressResources.length}</strong> resources and <strong>{stressEvents.length}</strong> events smoothly.</span>
                 </div>
                 <div className="flex items-center gap-1.5 ml-4">
-                  <label htmlFor="stress-rows-select" className="font-semibold text-amber-950 dark:text-amber-200">Resources:</label>
-                  <select
-                    id="stress-rows-select"
-                    value={stressRowCount}
-                    onChange={(e) => handleStressRowCountChange(Number(e.target.value))}
-                    className="bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-800 rounded px-2 py-0.5 text-xs font-semibold focus:outline-none"
-                  >
-                    {[50, 200, 400, 800, 1000, 1200, 1500, 2000].map(count => (
-                      <option key={count} value={count}>{count} Rows</option>
-                    ))}
-                  </select>
+                  <SUICoreBodyText as="span" size="xs" weight="bold" className="text-amber-950 dark:text-amber-200">Resources:</SUICoreBodyText>
+                  <SUICoreSelect
+                    label="Resources"
+                    hideLabel
+                    width="fit"
+                    size="sm"
+                    value={String(stressRowCount)}
+                    onChange={(v) => handleStressRowCountChange(Number(v))}
+                    options={[50, 200, 400, 800, 1000, 1200, 1500, 2000].map((count) => ({
+                      value: String(count),
+                      label: `${count} Rows`,
+                    }))}
+                  />
                 </div>
               </div>
               <span className="font-mono text-[10px] bg-amber-100 dark:bg-amber-900/50 px-2 py-0.5 rounded">
@@ -200,8 +203,8 @@ function App() {
           </div>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center border border-dashed border-border rounded-xl bg-white m-6 p-8 text-center shadow-sm">
-            <h3 className="text-lg font-semibold text-text-primary">{activeTab} View</h3>
-            <p className="text-sm text-text-secondary mt-1">This section is currently under development.</p>
+            <SUICoreHeading size="s1">{activeTab} View</SUICoreHeading>
+            <SUICoreBodyText size="sm" tone="secondary" className="mt-1">This section is currently under development.</SUICoreBodyText>
           </div>
         )}
       </main>

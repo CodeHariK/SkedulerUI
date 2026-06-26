@@ -7,6 +7,18 @@ export const STATUS_COLORS = {
   Cancelled: 'bg-[#FEF2F2] text-[#B91C1C] border-[#FEE2E2] dark:bg-[#7F1D1D]/20 dark:text-[#F87171]',
 } as const;
 
+// Domain → presentation: map a job status to a SUICoreBadge variant. Kept here
+// (the feature layer) so the SUI Badge primitive stays domain-free.
+export const STATUS_BADGE_VARIANT: Record<
+  EventItem['status'],
+  'neutral' | 'primary' | 'success' | 'warning' | 'danger' | 'info'
+> = {
+  New: 'info',
+  Ongoing: 'warning',
+  Completed: 'success',
+  Cancelled: 'danger',
+};
+
 export const LAYOUT_CONSTANTS = {
   HEADER_OFFSET: 56,
   ROW_MIN_HEIGHT: 140,

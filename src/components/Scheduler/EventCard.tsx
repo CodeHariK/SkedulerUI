@@ -1,11 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import type { Resource, EventItem } from './types';
-import { cn } from '@/lib/utils';
-import { Badge } from '@/components/ui/badge';
-import { Popover, PopoverTrigger } from '@/components/ui/popover';
+import { cn } from '@/lib/cn';
+import { SUICoreBadge, SUICorePopover, SUICorePopoverTrigger, SUICoreBodyText, SUICoreIcon } from '@/components/sui';
 import { EventDetailPopover } from './EventDetailPopover';
-import { Eye, EyeOff } from 'lucide-react';
-import { STATUS_COLORS, getIsDispatched } from './constants';
+import { STATUS_BADGE_VARIANT, getIsDispatched } from './constants';
 
 interface EventCardProps {
   event: EventItem;
@@ -67,11 +65,11 @@ export const EventCard: React.FC<EventCardProps> = React.memo(({
   const isDispatched = getIsDispatched(event);
 
   return (
-    <Popover
+    <SUICorePopover
       open={isHovering && !isDragging}
       onOpenChange={setIsHovering}
     >
-      <PopoverTrigger asChild>
+      <SUICorePopoverTrigger asChild>
         <div
           className={cn(
             "flex flex-col justify-between h-[85px] p-3 pl-4 rounded-xl border border-slate-100 bg-white dark:bg-[#1a1a24] dark:border-border/30 text-left shadow-md hover:shadow-lg relative select-none touch-none cursor-pointer group",
@@ -114,28 +112,26 @@ export const EventCard: React.FC<EventCardProps> = React.memo(({
           </div>
 
           <div>
-            <h4 className="font-sans font-bold text-text-primary text-[12px] leading-[16px] truncate">{event.title}</h4>
+            <SUICoreBodyText as="span" size="xs" weight="bold" className="block truncate">{event.title}</SUICoreBodyText>
             {location && (
-              <div className="flex items-center gap-1.5 text-[12px] text-text-tertiary mt-0.5 min-w-0 font-roboto font-normal leading-normal">
+              <div className="flex items-center gap-1.5 text-body-xs text-fg-tertiary mt-0.5 min-w-0 font-normal leading-normal">
                 <span className="truncate">{location}</span>
-                {isDispatched ? (
-                  <Eye className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                ) : (
-                  <EyeOff className="w-3.5 h-3.5 text-orange-500 dark:text-orange-400 shrink-0" />
-                )}
+                <SUICoreIcon
+                  name={isDispatched ? 'eye' : 'eyeOff'}
+                  size="xs"
+                  className={cn('shrink-0', isDispatched ? 'text-success-500' : 'text-warning-500')}
+                />
               </div>
             )}
           </div>
 
           <div className="flex items-center gap-3 mt-1.5 flex-nowrap overflow-hidden">
-            <Badge variant="outline" className={cn("text-[9px] font-bold px-2 py-0.5 rounded-full border-none uppercase tracking-wider shrink-0", STATUS_COLORS[event.status] || "bg-muted text-muted-foreground")}>
-              {event.status}
-            </Badge>
-            <span className="text-[12px] font-bold text-text-primary shrink-0">${price}</span>
-            <span className="text-[12px] text-text-tertiary shrink-0 truncate">{formatFullTime(event.startTime, event.endTime)}</span>
+            <SUICoreBadge variant={STATUS_BADGE_VARIANT[event.status]} text={event.status} className="uppercase tracking-wider shrink-0" />
+            <span className="text-body-xs font-bold text-fg-primary shrink-0">${price}</span>
+            <span className="text-body-xs text-fg-tertiary shrink-0 truncate">{formatFullTime(event.startTime, event.endTime)}</span>
           </div>
         </div>
-      </PopoverTrigger>
+      </SUICorePopoverTrigger>
 
       {/* Only build the detail subtree once the card is actually hovered, so the
           thousands of idle cards never construct their popover content. */}
@@ -147,6 +143,6 @@ export const EventCard: React.FC<EventCardProps> = React.memo(({
           onPointerLeave={handlePointerLeave}
         />
       )}
-    </Popover>
+    </SUICorePopover>
   );
 });
