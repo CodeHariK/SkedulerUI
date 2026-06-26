@@ -1,19 +1,21 @@
 import type { Resource, EventItem } from '../components/Scheduler/types';
-import { generateStressTestData } from './stressMockData';
+import { generateEventsForResources } from './stressMockData';
 import { toast } from 'sonner';
 
 /**
- * Modular data fetcher to retrieve scheduler resources and events for a specific date.
+ * Modular data fetcher to retrieve events for a specific date, keyed to the
+ * exact resources passed in. Keying by resource (rather than a count) keeps the
+ * dummy data aligned when only a subset of technicians is displayed.
  * Currently uses client-side generation, but can easily be replaced with a server fetch() request.
  */
 export const fetchSchedulerDataByDate = async (
-  resourceCount: number,
+  resources: Resource[],
   date: Date
 ): Promise<{ resources: Resource[]; events: EventItem[] }> => {
   // Simulate a small network delay to mimic a server response
   await new Promise((resolve) => setTimeout(resolve, 50));
 
-  return generateStressTestData(resourceCount, date);
+  return { resources, events: generateEventsForResources(resources, date) };
 };
 
 /**

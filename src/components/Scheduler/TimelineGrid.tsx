@@ -26,6 +26,11 @@ interface TimelineGridProps {
   formatHourLabel: (hour: number) => string;
   resources: Resource[];
   selection: Selection;
+  /** Human-readable time range of the in-progress selection ghost. */
+  selectionLabel: string | null;
+  /** Live time range labels for the move/resize ghosts. */
+  dropLabel: string | null;
+  resizeLabel: string | null;
   totalSlots: number;
   startCardDrag: (e: React.PointerEvent, eventId: string) => void;
   startCardResize: (e: React.PointerEvent, eventId: string, direction: 'left' | 'right') => void;
@@ -51,6 +56,9 @@ interface RowContentProps {
   totalSlots: number;
   isClone: boolean;
   selectionForRow: Selection;
+  selectionLabel?: string | null;
+  dropLabel?: string | null;
+  resizeLabel?: string | null;
   dropIndicatorForRow: DropIndicator;
   resizeIndicatorForRow: ResizeIndicator;
   interactionEventId: string | undefined;
@@ -63,9 +71,16 @@ interface RowContentProps {
   renderEvent?: TimelineGridProps['renderEvent'];
 }
 
+// Floating "start – end" pill shown above an interaction ghost.
+const GhostTimeLabel: React.FC<{ label: string }> = ({ label }) => (
+  <span className="absolute left-1/2 -translate-x-1/2 bottom-[calc(100%+4px)] px-2 py-1 rounded-md bg-primary text-primary-foreground text-xs font-semibold whitespace-nowrap shadow-md pointer-events-none z-30">
+    {label}
+  </span>
+);
+
 const RowContent: React.FC<RowContentProps> = ({
   resource, resourceEvents, totalSlots, isClone,
-  selectionForRow, dropIndicatorForRow, resizeIndicatorForRow,
+  selectionForRow, selectionLabel, dropLabel, resizeLabel, dropIndicatorForRow, resizeIndicatorForRow,
   interactionEventId, isDragActive, eventSpans, eventLanes,
   draggedElementRef, startCardDrag, startCardResize, renderEvent,
 }) => {
@@ -74,14 +89,19 @@ const RowContent: React.FC<RowContentProps> = ({
   const endCol = isSelectedRow ? Math.max(selectionForRow!.startSlot, selectionForRow!.currentSlot) : 0;
 
   return (
-    <div className="absolute inset-0 grid content-center gap-y-2 px-2 pointer-events-none" style={{ gridTemplateColumns: `repeat(${totalSlots}, minmax(0, 1fr))` }}>
+    <div className="absolute inset-0 grid content-center gap-y-2 pointer-events-none" style={{ gridTemplateColumns: `repeat(${totalSlots}, minmax(0, 1fr))` }}>
       {isSelectedRow && !isClone && (
-        <div style={{ gridColumnStart: startCol + 1, gridColumnEnd: (startCol === endCol ? startCol + 4 : endCol) + 1, gridRowStart: 1, zIndex: 20 }}
-          className="bg-primary/15 border-2 border-dashed border-primary rounded-lg h-[85px] mx-1 backdrop-blur-[1px]" />
+        <div style={{ gridColumnStart: startCol + 1, gridColumnEnd: endCol + 2, gridRowStart: 1, zIndex: 20 }}
+          className="relative bg-primary/15 border-2 border-dashed border-primary rounded-lg h-[85px] backdrop-blur-[1px]">
+          {/* Floated above so it stays readable even for a 15-min sliver. */}
+          {selectionLabel && <GhostTimeLabel label={selectionLabel} />}
+        </div>
       )}
       {dropIndicatorForRow && !isClone && (
         <div style={{ gridColumnStart: dropIndicatorForRow.startCol + 1, gridColumnEnd: dropIndicatorForRow.endCol + 1, gridRowStart: 1, zIndex: 30 }}
-          className="bg-primary/20 border-2 border-dashed border-primary rounded-xl h-[85px] mx-1 backdrop-blur-[2px] shadow-sm" />
+          className="relative bg-primary/20 border-2 border-dashed border-primary rounded-xl h-[85px] mx-1 backdrop-blur-[2px] shadow-sm">
+          {dropLabel && <GhostTimeLabel label={dropLabel} />}
+        </div>
       )}
       {resourceEvents.map((event) => {
         const { gridColumnStart, gridColumnEnd } = eventSpans[event.id] || { gridColumnStart: 1, gridColumnEnd: 1 };
@@ -103,7 +123,9 @@ const RowContent: React.FC<RowContentProps> = ({
           <React.Fragment key={event.id}>
             {isResizingThis && !isClone && (
               <div style={{ gridColumnStart: resizeGhostStart, gridColumnEnd: resizeGhostEnd, gridRowStart: lane, zIndex: 30 }}
-                className="bg-primary/20 border-2 border-dashed border-primary rounded-xl h-[85px] mx-1 backdrop-blur-[2px] shadow-sm" />
+                className="relative bg-primary/20 border-2 border-dashed border-primary rounded-xl h-[85px] mx-1 backdrop-blur-[2px] shadow-sm">
+                {resizeLabel && <GhostTimeLabel label={resizeLabel} />}
+              </div>
             )}
             <div
               ref={isDraggingThis && !isClone ? draggedElementRef : null}
@@ -137,9 +159,13 @@ interface TimelineRowProps {
   virtualStart: number;
   virtualIndex: number;
   totalSlots: number;
+  totalHours: number;
   hourWidth: number;
   bgEvenOdd: string;
   selectionForRow: Selection;
+  selectionLabel?: string | null;
+  dropLabel?: string | null;
+  resizeLabel?: string | null;
   dropIndicatorForRow: DropIndicator;
   resizeIndicatorForRow: ResizeIndicator;
   interactionEventId: string | undefined;
@@ -160,18 +186,24 @@ interface TimelineRowProps {
 }
 
 const TimelineRow: React.FC<TimelineRowProps> = memo(({
-  resource, resourceEvents, rowHeight, virtualStart, virtualIndex, totalSlots, hourWidth, bgEvenOdd,
-  selectionForRow, dropIndicatorForRow, resizeIndicatorForRow, interactionEventId, isDragActive,
+  resource, resourceEvents, rowHeight, virtualStart, virtualIndex, totalSlots, totalHours, bgEvenOdd,
+  selectionForRow, selectionLabel, dropLabel, resizeLabel, dropIndicatorForRow, resizeIndicatorForRow, interactionEventId, isDragActive,
   hasActiveCard, isDraggingRow, showDropLine, dropLineBelow, animateLayout,
   eventSpans, eventLanes, draggedElementRef, draggedGridRowRef,
   startCardDrag, startCardResize, handleRowPointerDown, renderEvent,
 }) => {
-  // Vertical hour separators, drawn as a background gradient so they sit above
-  // the row stripe but below the event cards. One 1px line per hour column,
-  // aligned with the timeline header.
-  const gridLineImage = hourWidth > 0
-    ? `repeating-linear-gradient(to right, var(--grid-line) 0, var(--grid-line) 1px, transparent 1px, transparent ${hourWidth}px)`
-    : undefined;
+  // Vertical hour separators, drawn as a tiled background so they sit above the
+  // row stripe but below the event cards. Sized as a PERCENTAGE of the row
+  // width (one tile per hour) so the lines stay aligned with the percentage-
+  // positioned header columns — even when the timeline is stretched to fill a
+  // viewport wider than its natural pixel width.
+  const gridLineStyle: React.CSSProperties = totalHours > 0
+    ? {
+        backgroundImage: 'linear-gradient(to right, var(--grid-line) 0, var(--grid-line) 1px, transparent 1px)',
+        backgroundSize: `calc(100% / ${totalHours}) 100%`,
+        backgroundRepeat: 'repeat',
+      }
+    : {};
 
   return (
     <div
@@ -191,11 +223,12 @@ const TimelineRow: React.FC<TimelineRowProps> = memo(({
           "border-b border-border absolute w-full h-full flex items-start transition-colors cursor-cell",
           isDraggingRow ? "opacity-30 bg-muted grayscale" : ""
         )}
-        style={{ backgroundColor: isDraggingRow ? undefined : bgEvenOdd, backgroundImage: gridLineImage }}
+        style={{ backgroundColor: isDraggingRow ? undefined : bgEvenOdd, ...gridLineStyle }}
       >
         <RowContent
           resource={resource} resourceEvents={resourceEvents} totalSlots={totalSlots} isClone={false}
-          selectionForRow={selectionForRow} dropIndicatorForRow={dropIndicatorForRow}
+          selectionForRow={selectionForRow} selectionLabel={selectionLabel}
+          dropLabel={dropLabel} resizeLabel={resizeLabel} dropIndicatorForRow={dropIndicatorForRow}
           resizeIndicatorForRow={resizeIndicatorForRow} interactionEventId={interactionEventId}
           isDragActive={isDragActive} eventSpans={eventSpans} eventLanes={eventLanes}
           draggedElementRef={draggedElementRef} startCardDrag={startCardDrag}
@@ -207,7 +240,7 @@ const TimelineRow: React.FC<TimelineRowProps> = memo(({
         <div
           ref={draggedGridRowRef}
           className="border-b border-border absolute w-full h-full flex items-start opacity-100 border-primary/40 bg-primary/5 !transition-none pointer-events-none"
-          style={{ backgroundColor: bgEvenOdd, backgroundImage: gridLineImage, zIndex: 50 }}
+          style={{ backgroundColor: bgEvenOdd, ...gridLineStyle, zIndex: 50 }}
         >
           <RowContent
             resource={resource} resourceEvents={resourceEvents} totalSlots={totalSlots} isClone={true}
@@ -234,7 +267,7 @@ export const TimelineGrid: React.FC<TimelineGridProps> = memo(({
   gridRef, draggedElementRef, draggedGridRowRef, dropIndicator, resizeIndicator, rowDrag, rowDropIndicator, isPanning,
   onMouseDown, onMouseMove, onMouseUpOrLeave,
   totalWidth, hours, totalHours, formatHourLabel, resources,
-  selection, totalSlots,
+  selection, selectionLabel, dropLabel, resizeLabel, totalSlots,
   startCardDrag, startCardResize, handleRowPointerDown,
   renderEvent, interactionEventId,
   virtualRows, totalSize, rowHeights, eventLanes, eventSpans, eventsByResource, animateLayout,
@@ -290,9 +323,13 @@ export const TimelineGrid: React.FC<TimelineGridProps> = memo(({
                   virtualStart={virtualRow.start}
                   virtualIndex={virtualRow.index}
                   totalSlots={totalSlots}
+                  totalHours={totalHours}
                   hourWidth={hourWidth}
                   bgEvenOdd={bgEvenOdd}
                   selectionForRow={selectionForRow}
+                  selectionLabel={selectionForRow ? selectionLabel : undefined}
+                  dropLabel={dropIndicatorForRow ? dropLabel : undefined}
+                  resizeLabel={resizeIndicatorForRow ? resizeLabel : undefined}
                   dropIndicatorForRow={dropIndicatorForRow}
                   resizeIndicatorForRow={resizeIndicatorForRow}
                   interactionEventId={hasActiveCard ? interactionEventId : undefined}

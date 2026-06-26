@@ -8,6 +8,9 @@ import { TimelineGrid } from './TimelineGrid';
 const JobCreationDialog = lazy(() =>
   import('./JobCreationDialog').then((m) => ({ default: m.JobCreationDialog }))
 );
+const TechnicianCreationDialog = lazy(() =>
+  import('./TechnicianCreationDialog').then((m) => ({ default: m.TechnicianCreationDialog }))
+);
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { LAYOUT_CONSTANTS } from './constants';
 // Shallow metadata comparison — avoids the cost of JSON.stringify on every
@@ -65,14 +68,27 @@ const slotToDate = (slot: number, currentDate: Date, dayStartHour: number, slots
   return date;
 };
 
+// "9:00 AM – 10:30 AM" label for a slot range — shared by the selection,
+// drag, and resize ghosts so they all show the same live feedback.
+const formatSlotRange = (startSlot: number, endSlot: number, currentDate: Date, dayStartHour: number, slotsPerHour: number) => {
+  const fmt = (d: Date) => d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  return `${fmt(slotToDate(startSlot, currentDate, dayStartHour, slotsPerHour))} – ${fmt(slotToDate(endSlot, currentDate, dayStartHour, slotsPerHour))}`;
+};
+
 const getEventGridSpan = (start: Date, end: Date, dayStartHour: number, totalHours: number, slotsPerHour: number) => {
   const startHourObj = start.getHours() + start.getMinutes() / 60;
   const endHourObj = end.getHours() + end.getMinutes() / 60;
-  const relativeStart = Math.max(0, startHourObj - dayStartHour);
-  const relativeEnd = Math.min(totalHours, endHourObj - dayStartHour);
+  // Clamp BOTH ends into the visible [0, totalHours] window. Without clamping
+  // both sides, an event outside the window yields a reversed/negative span
+  // that CSS grid renders as a full-width card overlapping other events.
+  const relativeStart = Math.min(totalHours, Math.max(0, startHourObj - dayStartHour));
+  const relativeEnd = Math.max(0, Math.min(totalHours, endHourObj - dayStartHour));
+  const gridColumnStart = Math.round(relativeStart * slotsPerHour) + 1;
+  let gridColumnEnd = Math.round(relativeEnd * slotsPerHour) + 1;
+  if (gridColumnEnd <= gridColumnStart) gridColumnEnd = gridColumnStart + 1; // guarantee ≥1 slot wide
   return {
-    gridColumnStart: Math.round(relativeStart * slotsPerHour) + 1,
-    gridColumnEnd: Math.round(relativeEnd * slotsPerHour) + 1
+    gridColumnStart,
+    gridColumnEnd
   };
 };
 
@@ -81,19 +97,25 @@ export interface ResourceSchedulerProps {
   events: EventItem[];
   dayStartHour?: number;
   dayEndHour?: number;
+  /** Snap/grid interval in minutes; drives how many slots make up an hour. */
+  snapMinutes?: number;
   canChangeRows?: boolean;
   renderResource?: (resource: Resource, onGripMouseDown?: (e: React.PointerEvent) => void) => React.ReactNode;
   renderEvent?: (event: EventItem, onDragStart?: (e: React.PointerEvent, eventId: string) => void, onResizeStart?: (e: React.PointerEvent, eventId: string, direction: 'left' | 'right') => void) => React.ReactNode;
   onEventChange?: (event: EventItem) => Promise<any> | void;
   onEventAdd?: (event: EventItem) => void;
   onResourcesReorder?: (resources: Resource[]) => void;
-  fetchEventsForDate: (resourceCount: number, date: Date) => Promise<{ resources: Resource[]; events: EventItem[] }>;
+  fetchEventsForDate: (resources: Resource[], date: Date) => Promise<{ resources: Resource[]; events: EventItem[] }>;
   onSaveEvent?: (event: EventItem) => Promise<any>;
+  /** Opens the template dialog (button lives in the controls header). */
+  onOpenTemplates?: () => void;
+  /** Called when a technician is added via the header's Add Technician button. */
+  onResourceAdd?: (resource: Resource) => void;
 }
 
 export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
-  resources, events, dayStartHour = 6, dayEndHour = 20, canChangeRows = true,
-  renderResource, renderEvent, onEventChange, onEventAdd, onResourcesReorder, fetchEventsForDate, onSaveEvent
+  resources, events, dayStartHour = 6, dayEndHour = 20, snapMinutes = 15, canChangeRows = true,
+  renderResource, renderEvent, onEventChange, onEventAdd, onResourcesReorder, fetchEventsForDate, onSaveEvent, onOpenTemplates, onResourceAdd
 }) => {
   const gridRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -138,6 +160,7 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
 
   const [showJobCreationModal, setShowJobCreationModal] = useState(false);
   const [newEventData, setNewEventData] = useState<NewEventData | null>(null);
+  const [showTechnicianModal, setShowTechnicianModal] = useState(false);
 
   // Enables CSS transitions on row height/position for a short window after a
   // layout-changing drop, so rows grow/shift smoothly. Kept time-boxed because
@@ -187,11 +210,15 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
-  // Dynamically fetch events for currentDate whenever it changes
+  // Stable signature of which resources are present, so a same-size technician
+  // swap (e.g. switching templates) still triggers a refetch.
+  const resourceIdsKey = useMemo(() => localResources.map(r => r.id).join(','), [localResources]);
+
+  // Dynamically fetch events for currentDate whenever it (or the roster) changes
   useEffect(() => {
     let active = true;
     if (localResources.length > 0) {
-      fetchEventsForDate(localResources.length, currentDate).then(({ events: newEvents }) => {
+      fetchEventsForDate(localResources, currentDate).then(({ events: newEvents }) => {
         if (active) {
           setLocalEvents(newEvents);
         }
@@ -201,14 +228,37 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
     return () => {
       active = false;
     };
-  }, [currentDate, localResources.length, fetchEventsForDate]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentDate, resourceIdsKey, fetchEventsForDate]);
 
-  const slotsPerHour = 4;
+  // Slots per hour derived from the snap interval (e.g. 15 min → 4, 1 min → 60).
+  const slotsPerHour = useMemo(() => Math.max(1, Math.round(60 / snapMinutes)), [snapMinutes]);
   const totalHours = useMemo(() => dayEndHour - dayStartHour, [dayEndHour, dayStartHour]);
-  const totalSlots = useMemo(() => totalHours * slotsPerHour, [totalHours]);
+  const totalSlots = useMemo(() => totalHours * slotsPerHour, [totalHours, slotsPerHour]);
   const hourWidth = useMemo(() => getHourWidth(zoomMinutes), [zoomMinutes]);
   const totalWidth = useMemo(() => totalHours * hourWidth, [totalHours, hourWidth]);
   const hours = useMemo(() => Array.from({ length: totalHours }, (_, i) => dayStartHour + i), [totalHours, dayStartHour]);
+
+  // Live "start – end" label for the in-progress selection ghost, so users can
+  // see exactly what time range they're about to create while dragging.
+  const selectionLabel = useMemo(() => {
+    if (!selection) return null;
+    const start = Math.min(selection.startSlot, selection.currentSlot);
+    const end = Math.max(selection.startSlot, selection.currentSlot);
+    // Duration tracks the drag distance only — a bare click is one slot (15 min).
+    const endSlot = Math.min(totalSlots, end + 1);
+    return formatSlotRange(start, endSlot, currentDate, dayStartHour, slotsPerHour);
+  }, [selection, totalSlots, currentDate, dayStartHour, slotsPerHour]);
+
+  // Live time labels for the move/resize ghosts, mirroring the selection ghost.
+  const dropLabel = useMemo(
+    () => dropIndicator ? formatSlotRange(dropIndicator.startCol, dropIndicator.endCol, currentDate, dayStartHour, slotsPerHour) : null,
+    [dropIndicator, currentDate, dayStartHour, slotsPerHour]
+  );
+  const resizeLabel = useMemo(
+    () => resizeIndicator ? formatSlotRange(resizeIndicator.startCol, resizeIndicator.endCol, currentDate, dayStartHour, slotsPerHour) : null,
+    [resizeIndicator, currentDate, dayStartHour, slotsPerHour]
+  );
 
   // Filter events to only show those scheduled on the current date
   const dailyEvents = useMemo(() => {
@@ -226,8 +276,17 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
     const eventSpans: Record<string, { gridColumnStart: number, gridColumnEnd: number }> = {};
     const eventsByResource: Record<string, EventItem[]> = {};
 
+    const dayEndHour = dayStartHour + totalHours;
+    // Only events that actually intersect the visible [dayStartHour, dayEndHour]
+    // window are rendered; fully out-of-window events are hidden (not packed in).
+    const intersectsWindow = (e: EventItem) => {
+      const s = e.startTime.getHours() + e.startTime.getMinutes() / 60;
+      const en = e.endTime.getHours() + e.endTime.getMinutes() / 60;
+      return en > dayStartHour && s < dayEndHour;
+    };
+
     localResources.forEach(r => { eventsByResource[r.id] = []; rowHeights[r.id] = LAYOUT_CONSTANTS.ROW_MIN_HEIGHT; });
-    dailyEvents.forEach(e => { if (eventsByResource[e.resourceId]) eventsByResource[e.resourceId].push(e); });
+    dailyEvents.forEach(e => { if (eventsByResource[e.resourceId] && intersectsWindow(e)) eventsByResource[e.resourceId].push(e); });
 
     localResources.forEach(resource => {
       const resourceEvents = eventsByResource[resource.id].sort((a, b) => {
@@ -527,7 +586,7 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
 
   }, [interaction, rowDrag, selection, localResources, totalSlots, canChangeRows]);
 
-  const handlePointerUp = useCallback((e: React.PointerEvent) => {
+  const handlePointerUp = useCallback(() => {
     if (activeModeRef.current === 'DRAGGING_CARD') {
       if (interaction && dropIndicator) {
         const finalEvent = localEvents.find(evt => evt.id === interaction.eventId);
@@ -613,24 +672,19 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
       setRowDrag(null);
       setRowDropIndicator(null);
     } else if (activeModeRef.current === 'SELECTING_SLOT' && selection) {
-      const dx = Math.abs(e.clientX - pointerStartPosRef.current.x);
-      const dy = Math.abs(e.clientY - pointerStartPosRef.current.y);
+      const start = Math.min(selection.startSlot, selection.currentSlot);
+      const end = Math.max(selection.startSlot, selection.currentSlot);
+      // Duration follows the swept range only (no forced 1-hour default); a
+      // bare click is the smallest unit (one slot / 15 min). Matches the ghost.
+      const finalEnd = Math.min(totalSlots, end + 1);
 
-      if (dx > 5 || dy > 5) {
-        const start = Math.min(selection.startSlot, selection.currentSlot);
-        const end = Math.max(selection.startSlot, selection.currentSlot);
-
-        // 3. CHANGE `end` TO `end + 1` HERE
-        const finalEnd = start === end ? start + 1 : end + 1;
-
-        setNewEventData({
-          resourceId: selection.resourceId,
-          startTime: slotToDate(start, currentDate, dayStartHour, slotsPerHour),
-          endTime: slotToDate(finalEnd, currentDate, dayStartHour, slotsPerHour),
-          title: 'New Job', location: '', price: 150, status: 'New'
-        });
-        setShowJobCreationModal(true);
-      }
+      setNewEventData({
+        resourceId: selection.resourceId,
+        startTime: slotToDate(start, currentDate, dayStartHour, slotsPerHour),
+        endTime: slotToDate(finalEnd, currentDate, dayStartHour, slotsPerHour),
+        title: 'New Job', location: '', price: 150, status: 'New'
+      });
+      setShowJobCreationModal(true);
       setSelection(null);
     }
 
@@ -641,13 +695,13 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
     activeModeRef.current = 'NONE';
     lastInteractionRef.current = null;
     checkAndSyncProps();
-  }, [interaction, dropIndicator, resizeIndicator, localEvents, localResources, currentDate, dayStartHour, slotsPerHour, onEventChange, onResourcesReorder, selection, rowDrag, rowDropIndicator, checkAndSyncProps, triggerLayoutAnimation]);
+  }, [interaction, dropIndicator, resizeIndicator, localEvents, localResources, currentDate, dayStartHour, slotsPerHour, totalSlots, onEventChange, onResourcesReorder, selection, rowDrag, rowDropIndicator, checkAndSyncProps, triggerLayoutAnimation]);
 
   const handleCreateJobHeader = useCallback(() => {
     setNewEventData({
       resourceId: localResources[0]?.id || '',
       startTime: slotToDate(0, currentDate, dayStartHour, slotsPerHour),
-      endTime: slotToDate(4, currentDate, dayStartHour, slotsPerHour),
+      endTime: slotToDate(slotsPerHour, currentDate, dayStartHour, slotsPerHour), // default 1-hour job
       title: '', location: '', price: 150, status: 'New'
     });
     setShowJobCreationModal(true);
@@ -679,6 +733,15 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
     setNewEventData(null);
   }, [newEventData, onEventAdd, triggerLayoutAnimation]);
 
+  const handleSaveTechnician = useCallback((resource: Resource) => {
+    // Bubble up so App keeps the roster (and template technician list) in sync;
+    // fall back to local state when no handler is provided (e.g. stress test).
+    if (onResourceAdd) onResourceAdd(resource);
+    else setLocalResources(prev => [...prev, resource]);
+    setShowTechnicianModal(false);
+    triggerLayoutAnimation();
+  }, [onResourceAdd, triggerLayoutAnimation]);
+
   const setScrollContainerRefs = useCallback((node: HTMLDivElement | null) => {
     if (node) { scrollContainerRef.current = node; setScrollElement(node); }
   }, []);
@@ -689,8 +752,10 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
         currentDate={currentDate} onDateChange={setCurrentDate}
         zoomMinutes={zoomMinutes} onZoomChange={setZoomMinutes}
         onReset={handleReset} onCreateJob={handleCreateJobHeader}
+        onAddTechnician={() => setShowTechnicianModal(true)}
         isMapViewActive={isMapViewActive} onMapViewToggle={handleMapViewToggle}
         theme={theme} onThemeToggle={handleThemeToggle}
+        onOpenTemplates={onOpenTemplates}
       />
       <div className="flex-1 min-h-0 relative overflow-hidden">
         <div
@@ -722,7 +787,8 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
             rowDropIndicator={rowDropIndicator}
             onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUpOrLeave={handleMouseUpOrLeave}
             totalWidth={totalWidth} hours={hours} totalHours={totalHours} formatHourLabel={formatHourLabel}
-            resources={localResources} selection={selection}
+            resources={localResources} selection={selection} selectionLabel={selectionLabel}
+            dropLabel={dropLabel} resizeLabel={resizeLabel}
             totalSlots={totalSlots}
             startCardDrag={startCardDrag} startCardResize={startCardResize} handleRowPointerDown={handleRowPointerDown}
             renderEvent={renderEvent} interactionEventId={interaction?.eventId}
@@ -737,6 +803,15 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
           <JobCreationDialog
             isOpen={showJobCreationModal} onClose={() => { setShowJobCreationModal(false); setNewEventData(null); }}
             newEventData={newEventData} onChange={setNewEventData} onSave={handleSaveJob} resources={localResources}
+          />
+        </Suspense>
+      )}
+      {showTechnicianModal && (
+        <Suspense fallback={null}>
+          <TechnicianCreationDialog
+            isOpen={showTechnicianModal}
+            onClose={() => setShowTechnicianModal(false)}
+            onSave={handleSaveTechnician}
           />
         </Suspense>
       )}

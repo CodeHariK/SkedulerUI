@@ -8,7 +8,9 @@ import {
   Minus,
   Plus,
   Sun,
-  Moon
+  Moon,
+  LayoutTemplate,
+  UserPlus
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Calendar } from '@/components/ui/calendar';
@@ -22,10 +24,12 @@ interface TimelineControlsHeaderProps {
   onZoomChange: (minutes: number) => void;
   onReset: () => void;
   onCreateJob: () => void;
+  onAddTechnician?: () => void;
   isMapViewActive: boolean;
   onMapViewToggle: () => void;
   theme: 'light' | 'dark';
   onThemeToggle: () => void;
+  onOpenTemplates?: () => void;
 }
 
 export const TimelineControlsHeader: React.FC<TimelineControlsHeaderProps> = React.memo(({
@@ -35,10 +39,12 @@ export const TimelineControlsHeader: React.FC<TimelineControlsHeaderProps> = Rea
   onZoomChange,
   onReset,
   onCreateJob,
+  onAddTechnician,
   isMapViewActive,
   onMapViewToggle,
   theme,
-  onThemeToggle
+  onThemeToggle,
+  onOpenTemplates
 }) => {
   // Format current date display (e.g. "March 16, 2026")
   const formatDateLabel = (date: Date) => {
@@ -232,6 +238,20 @@ export const TimelineControlsHeader: React.FC<TimelineControlsHeaderProps> = Rea
           </span>
         </Button>
 
+        {/* Add Technician Button */}
+        {onAddTechnician && (
+          <Button
+            onClick={onAddTechnician}
+            variant="outline"
+            className="bg-white dark:bg-[#1c1c1c] border border-[#e5e7eb] dark:border-[#2a2a2a] hover:bg-[#fafafa] dark:hover:bg-[#252525] rounded-full h-auto px-3.5 py-1.5 flex gap-1.5 items-center cursor-pointer transition-all duration-200 shadow-xs active:scale-[0.98]"
+          >
+            <UserPlus className="size-4 text-[#364153] dark:text-[#a0aec0]" />
+            <span className="font-['Satoshi'] font-medium text-[14px] leading-[20px] text-[#364153] dark:text-[#cbd5e1]">
+              Add Technician
+            </span>
+          </Button>
+        )}
+
         {/* Create Dropdown Button */}
         <Button
           onClick={onCreateJob}
@@ -243,6 +263,18 @@ export const TimelineControlsHeader: React.FC<TimelineControlsHeaderProps> = Rea
             Create
           </span>
           <ChevronDown className="size-4 text-white/80" />
+        </Button>
+
+        {/* Template Button */}
+        <Button
+          onClick={onOpenTemplates}
+          variant="outline"
+          className="bg-white dark:bg-[#1c1c1c] border border-[#e5e7eb] dark:border-[#2a2a2a] hover:bg-[#fafafa] dark:hover:bg-[#252525] rounded-full h-auto px-3.5 py-1.5 flex gap-1.5 items-center cursor-pointer transition-all duration-200 shadow-xs active:scale-[0.98]"
+        >
+          <LayoutTemplate className="size-4 text-[#364153] dark:text-[#a0aec0]" />
+          <span className="font-['Satoshi'] font-medium text-[14px] leading-[20px] text-[#364153] dark:text-[#cbd5e1]">
+            Template
+          </span>
         </Button>
 
         {/* Theme Button */}

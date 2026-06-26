@@ -41,9 +41,22 @@ export const JobCreationDialog: React.FC<JobCreationDialogProps> = ({
     return `${newEventData.startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} – ${newEventData.endTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
   };
 
+  // Selects render in a portal outside the dialog; without this guard, clicking
+  // an open dropdown counts as an outside interaction and dismisses the dialog.
+  const keepDialogOpenForSelect = (e: { detail: { originalEvent: Event }; preventDefault: () => void }) => {
+    const target = e.detail.originalEvent.target as Element | null;
+    if (target?.closest('[data-slot="select-content"]')) {
+      e.preventDefault();
+    }
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="bg-card text-card-foreground border-border p-6 w-[400px] max-w-full rounded-xl select-none">
+      <DialogContent
+        className="bg-card text-card-foreground border-border p-6 w-[400px] max-w-full rounded-xl select-none"
+        onPointerDownOutside={keepDialogOpenForSelect}
+        onInteractOutside={keepDialogOpenForSelect}
+      >
         <DialogHeader>
           <DialogTitle className="text-base font-bold text-text-primary mb-2">Create New Job</DialogTitle>
         </DialogHeader>
