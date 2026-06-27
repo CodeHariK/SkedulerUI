@@ -3,7 +3,7 @@ import type { Resource, EventItem, CardFieldKey } from './types';
 import { cn } from '@/lib/cn';
 import { SUICoreBadge, SUICorePopover, SUICorePopoverTrigger, SUICoreBodyText, SUICoreIcon } from '@/components/sui';
 import { EventDetailPopover } from './EventDetailPopover';
-import { STATUS_BADGE_VARIANT, getIsDispatched, DEFAULT_CARD_ROWS } from './constants';
+import { STATUS_BADGE_VARIANT, getIsDispatched, formatJobNumber, DEFAULT_CARD_ROWS } from './constants';
 import { useDetailOpen } from './_lib/detailOpen';
 
 interface EventCardProps {
@@ -147,19 +147,25 @@ export const EventCard: React.FC<EventCardProps> = React.memo(({
     switch (key) {
       case 'title':
         return <SUICoreBodyText as="span" size="xs" weight="bold" className="truncate max-w-full">{event.title}</SUICoreBodyText>;
+      case 'jobNumber':
+        return <span className="text-body-2xs font-medium text-fg-tertiary shrink-0">JOB #{formatJobNumber(event.id)}</span>;
       case 'location':
-        return location ? (
-          <span className="flex items-center gap-1.5 text-body-xs text-fg-tertiary min-w-0 font-normal">
-            <span className="truncate">{location}</span>
-            <SUICoreIcon name={isDispatched ? 'eye' : 'eyeOff'} size="xs" className={cn('shrink-0', isDispatched ? 'text-success-500' : 'text-warning-500')} />
-          </span>
-        ) : null;
+        return location ? <span className="text-body-xs text-fg-tertiary truncate min-w-0">{location}</span> : null;
       case 'status':
         return <SUICoreBadge variant={STATUS_BADGE_VARIANT[event.status]} text={event.status} className="uppercase tracking-wider shrink-0" />;
+      case 'dispatch':
+        return (
+          <span className={cn('flex items-center gap-1 text-body-xs font-medium shrink-0', isDispatched ? 'text-success-500' : 'text-warning-500')}>
+            <SUICoreIcon name={isDispatched ? 'eye' : 'eyeOff'} size="xs" />
+            {isDispatched ? 'Dispatched' : 'Pending'}
+          </span>
+        );
       case 'price':
         return <span className="text-body-xs font-bold text-fg-primary shrink-0">${price}</span>;
       case 'time':
         return <span className="text-body-xs text-fg-tertiary shrink-0 truncate">{formatFullTime(event.startTime, event.endTime)}</span>;
+      case 'technician':
+        return <span className="text-body-xs text-fg-secondary truncate min-w-0">{resource ? resource.name : 'Unassigned'}</span>;
     }
   };
 

@@ -3,10 +3,13 @@ import type { EventItem, CardFieldKey } from './types';
 // Catalog of customizable card fields (key + editor label) and the default set.
 export const CARD_FIELDS: { key: CardFieldKey; label: string }[] = [
   { key: 'title', label: 'Title' },
+  { key: 'jobNumber', label: 'Job #' },
   { key: 'location', label: 'Location' },
   { key: 'status', label: 'Status' },
-  { key: 'price', label: 'Price' },
+  { key: 'dispatch', label: 'Dispatch' },
+  { key: 'price', label: 'Callout' },
   { key: 'time', label: 'Time' },
+  { key: 'technician', label: 'Technician' },
 ];
 
 export const DEFAULT_CARD_FIELDS: CardFieldKey[] = ['title', 'location', 'status', 'price', 'time'];

@@ -24,7 +24,15 @@ export interface EventItem {
 }
 
 /** Fields that can be shown on an event card in the timeline. */
-export type CardFieldKey = 'title' | 'location' | 'status' | 'price' | 'time';
+export type CardFieldKey =
+  | 'title'
+  | 'jobNumber'
+  | 'location'
+  | 'status'
+  | 'dispatch'
+  | 'price'
+  | 'time'
+  | 'technician';
 
 export interface SchedulerTemplate {
   id: string;
