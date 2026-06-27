@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
-import type { Resource, EventItem } from './types';
+import type { Resource, EventItem, CardFieldKey } from './types';
 import { cn } from '@/lib/cn';
 import { SUICoreBadge, SUICorePopover, SUICorePopoverTrigger, SUICoreBodyText, SUICoreIcon } from '@/components/sui';
 import { EventDetailPopover } from './EventDetailPopover';
-import { STATUS_BADGE_VARIANT, getIsDispatched } from './constants';
+import { STATUS_BADGE_VARIANT, getIsDispatched, DEFAULT_CARD_ROWS } from './constants';
 import { useDetailOpen } from './_lib/detailOpen';
 
 interface EventCardProps {
@@ -14,6 +14,8 @@ interface EventCardProps {
   onResizeStart: (e: React.PointerEvent, eventId: string, direction: 'left' | 'right') => void;
   /** Whether the detail card opens on hover or on click. */
   detailTrigger?: 'hover' | 'click';
+  /** Fields to show, arranged by row. */
+  cardRows?: CardFieldKey[][];
 }
 
 // A press that moves less than this (px) counts as a click, not a drag.
@@ -26,6 +28,7 @@ export const EventCard: React.FC<EventCardProps> = React.memo(({
   onDragStart,
   onResizeStart,
   detailTrigger = 'hover',
+  cardRows = DEFAULT_CARD_ROWS,
 }) => {
   const location = event.metadata?.location || '';
   const price = event.metadata?.price || 0;
@@ -139,6 +142,27 @@ export const EventCard: React.FC<EventCardProps> = React.memo(({
   const borderClass = role === 'ELECTRICAL' ? 'border-l-[#CF4523]' : 'border-l-[#2563eb]';
   const isDispatched = getIsDispatched(event);
 
+  // Renders a single card field. The card lays these out in `cardFields` order.
+  const renderField = (key: CardFieldKey): React.ReactNode => {
+    switch (key) {
+      case 'title':
+        return <SUICoreBodyText as="span" size="xs" weight="bold" className="truncate max-w-full">{event.title}</SUICoreBodyText>;
+      case 'location':
+        return location ? (
+          <span className="flex items-center gap-1.5 text-body-xs text-fg-tertiary min-w-0 font-normal">
+            <span className="truncate">{location}</span>
+            <SUICoreIcon name={isDispatched ? 'eye' : 'eyeOff'} size="xs" className={cn('shrink-0', isDispatched ? 'text-success-500' : 'text-warning-500')} />
+          </span>
+        ) : null;
+      case 'status':
+        return <SUICoreBadge variant={STATUS_BADGE_VARIANT[event.status]} text={event.status} className="uppercase tracking-wider shrink-0" />;
+      case 'price':
+        return <span className="text-body-xs font-bold text-fg-primary shrink-0">${price}</span>;
+      case 'time':
+        return <span className="text-body-xs text-fg-tertiary shrink-0 truncate">{formatFullTime(event.startTime, event.endTime)}</span>;
+    }
+  };
+
   return (
     <SUICorePopover open={open} onOpenChange={isHoverMode ? setIsHovering : (o) => { if (!o) setOpenId(null); }}>
       <SUICorePopoverTrigger asChild>
@@ -189,24 +213,19 @@ export const EventCard: React.FC<EventCardProps> = React.memo(({
             <div className="w-1 h-1/2 bg-primary/40 rounded-l-md" />
           </div>
 
-          <div>
-            <SUICoreBodyText as="span" size="xs" weight="bold" className="block truncate">{event.title}</SUICoreBodyText>
-            {location && (
-              <div className="flex items-center gap-1.5 text-body-xs text-fg-tertiary mt-0.5 min-w-0 font-normal leading-normal">
-                <span className="truncate">{location}</span>
-                <SUICoreIcon
-                  name={isDispatched ? 'eye' : 'eyeOff'}
-                  size="xs"
-                  className={cn('shrink-0', isDispatched ? 'text-success-500' : 'text-warning-500')}
-                />
-              </div>
-            )}
-          </div>
-
-          <div className="flex items-center gap-3 mt-1.5 flex-nowrap overflow-hidden">
-            <SUICoreBadge variant={STATUS_BADGE_VARIANT[event.status]} text={event.status} className="uppercase tracking-wider shrink-0" />
-            <span className="text-body-xs font-bold text-fg-primary shrink-0">${price}</span>
-            <span className="text-body-xs text-fg-tertiary shrink-0 truncate">{formatFullTime(event.startTime, event.endTime)}</span>
+          <div className="flex flex-col justify-center h-full min-w-0 overflow-hidden gap-1 w-full">
+            {cardRows.map((row, rowIdx) => {
+              const fieldNodes = row.map((key) => {
+                const node = renderField(key);
+                return node ? <React.Fragment key={key}>{node}</React.Fragment> : null;
+              }).filter(Boolean);
+              if (fieldNodes.length === 0) return null;
+              return (
+                <div key={rowIdx} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 min-w-0 overflow-hidden">
+                  {fieldNodes}
+                </div>
+              );
+            })}
           </div>
         </div>
       </SUICorePopoverTrigger>

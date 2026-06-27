@@ -1,4 +1,21 @@
-import type { EventItem } from './types';
+import type { EventItem, CardFieldKey } from './types';
+
+// Catalog of customizable card fields (key + editor label) and the default set.
+export const CARD_FIELDS: { key: CardFieldKey; label: string }[] = [
+  { key: 'title', label: 'Title' },
+  { key: 'location', label: 'Location' },
+  { key: 'status', label: 'Status' },
+  { key: 'price', label: 'Price' },
+  { key: 'time', label: 'Time' },
+];
+
+export const DEFAULT_CARD_FIELDS: CardFieldKey[] = ['title', 'location', 'status', 'price', 'time'];
+
+/** Max rows a card layout can have. */
+export const MAX_CARD_ROWS = 3;
+
+/** Default row layout: title, then location, then the meta row. */
+export const DEFAULT_CARD_ROWS: CardFieldKey[][] = [['title'], ['location'], ['status', 'price', 'time']];
 
 export const STATUS_COLORS = {
   Ongoing: 'bg-[#FEF6F5] text-[#CF4523] border-[#FCDFD4] dark:bg-[#791D09]/20 dark:text-[#F98A66]',

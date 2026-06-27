@@ -23,6 +23,9 @@ export interface EventItem {
   };
 }
 
+/** Fields that can be shown on an event card in the timeline. */
+export type CardFieldKey = 'title' | 'location' | 'status' | 'price' | 'time';
+
 export interface SchedulerTemplate {
   id: string;
   name: string;
@@ -38,6 +41,11 @@ export interface SchedulerTemplate {
   theme: 'light' | 'dark';
   /** Whether the event detail card opens on hover or on click. */
   detailTrigger: 'hover' | 'click';
+  /**
+   * Event-card layout: each inner array is a row of field keys, in render order.
+   * Fields absent from every row are hidden. Up to 3 rows.
+   */
+  cardRows: CardFieldKey[][];
   /** Built-in templates can be applied but not edited or deleted. */
   isBuiltIn?: boolean;
 }

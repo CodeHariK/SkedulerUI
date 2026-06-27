@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { NavigationHeader } from './components/NavigationHeader';
 import { ResourceScheduler } from './components/Scheduler/ResourceScheduler';
 import { TemplateDialog } from './components/Scheduler/TemplateDialog';
-import type { Resource, SchedulerTemplate } from './components/Scheduler/types';
+import type { Resource, SchedulerTemplate, CardFieldKey } from './components/Scheduler/types';
 import { generateStressTestData } from '@/lib/stressMockData';
 import { fetchSchedulerDataByDate, saveEventToDatabase } from '@/lib/schedulerService';
 import { SUICoreSelect, SUICoreHeading, SUICoreBodyText } from '@/components/sui';
@@ -10,7 +10,15 @@ import { Toaster } from '@/components/ui/sonner';
 
 // Fallback view used only when no template is active (e.g. all templates
 // deleted): show every technician across the full default window.
-const FALLBACK_VIEW = { dayStartHour: 6, dayEndHour: 20, visibleResourceIds: null as string[] | null, snapMinutes: 15, theme: 'light' as 'light' | 'dark', detailTrigger: 'hover' as 'hover' | 'click' };
+const FALLBACK_VIEW = {
+  dayStartHour: 6,
+  dayEndHour: 20,
+  visibleResourceIds: null as string[] | null,
+  snapMinutes: 15,
+  theme: 'light' as 'light' | 'dark',
+  detailTrigger: 'hover' as 'hover' | 'click',
+  cardRows: [['title'], ['location'], ['status', 'price', 'time']] as CardFieldKey[][],
+};
 
 // Two seeded dummy templates for testing — different technicians, hours, snap.
 const DUMMY_TEMPLATES: SchedulerTemplate[] = [
@@ -23,6 +31,7 @@ const DUMMY_TEMPLATES: SchedulerTemplate[] = [
     snapMinutes: 15,
     theme: 'light',
     detailTrigger: 'hover',
+    cardRows: [['title'], ['location'], ['status', 'price', 'time']],
   },
   {
     id: 'tpl-evening',
@@ -33,6 +42,7 @@ const DUMMY_TEMPLATES: SchedulerTemplate[] = [
     snapMinutes: 30,
     theme: 'dark',
     detailTrigger: 'click',
+    cardRows: [['title', 'status', 'time']],
   },
 ];
 
@@ -174,6 +184,7 @@ function App() {
             dayEndHour={activeView.dayEndHour}
             snapMinutes={activeView.snapMinutes}
             detailTrigger={activeView.detailTrigger}
+            cardRows={activeView.cardRows}
             canChangeRows={true}
             fetchEventsForDate={fetchSchedulerDataByDate}
             onSaveEvent={saveEventToDatabase}

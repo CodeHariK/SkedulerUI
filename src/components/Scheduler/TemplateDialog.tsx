@@ -15,7 +15,9 @@ import {
   SUICoreSwitch,
 } from '@/components/sui';
 import { cn } from '@/lib/cn';
-import type { Resource, SchedulerTemplate } from './types';
+import { DEFAULT_CARD_ROWS } from './constants';
+import { CardLayoutEditor } from './CardLayoutEditor';
+import type { Resource, SchedulerTemplate, CardFieldKey } from './types';
 
 interface TemplateDialogProps {
   open: boolean;
@@ -28,7 +30,7 @@ interface TemplateDialogProps {
   onDelete: (id: string) => void;
 }
 
-type Tab = 'time' | 'technicians' | 'more';
+type Tab = 'time' | 'technicians' | 'card' | 'more';
 
 const SNAP_OPTIONS = [
   { value: 1, label: '1 min' },
@@ -68,6 +70,7 @@ export const TemplateDialog: React.FC<TemplateDialogProps> = ({
   const [snapMinutes, setSnapMinutes] = React.useState(15);
   const [themeDraft, setThemeDraft] = React.useState<'light' | 'dark'>('light');
   const [detailTriggerDraft, setDetailTriggerDraft] = React.useState<'hover' | 'click'>('hover');
+  const [cardRowsDraft, setCardRowsDraft] = React.useState<CardFieldKey[][]>([]);
   const [allMode, setAllMode] = React.useState(true);
   const [selectedIds, setSelectedIds] = React.useState<string[]>([]);
 
@@ -85,6 +88,7 @@ export const TemplateDialog: React.FC<TemplateDialogProps> = ({
       setSnapMinutes(template.snapMinutes);
       setThemeDraft(template.theme);
       setDetailTriggerDraft(template.detailTrigger);
+      setCardRowsDraft(template.cardRows || DEFAULT_CARD_ROWS);
       setAllMode(template.visibleResourceIds === null);
       setSelectedIds(template.visibleResourceIds ?? allResources.map((r) => r.id));
     } else {
@@ -95,6 +99,7 @@ export const TemplateDialog: React.FC<TemplateDialogProps> = ({
       setSnapMinutes(15);
       setThemeDraft('light');
       setDetailTriggerDraft('hover');
+      setCardRowsDraft(DEFAULT_CARD_ROWS);
       setAllMode(true);
       setSelectedIds(allResources.map((r) => r.id));
     }
@@ -133,6 +138,7 @@ export const TemplateDialog: React.FC<TemplateDialogProps> = ({
       snapMinutes,
       theme: themeDraft,
       detailTrigger: detailTriggerDraft,
+      cardRows: cardRowsDraft,
       visibleResourceIds: allMode ? null : selectedIds,
     });
     handleClose();
@@ -207,6 +213,7 @@ export const TemplateDialog: React.FC<TemplateDialogProps> = ({
             <SUICoreTabsList>
               <SUICoreTabsTrigger value="time" icon="clock">Time</SUICoreTabsTrigger>
               <SUICoreTabsTrigger value="technicians" icon="users">Technicians</SUICoreTabsTrigger>
+              <SUICoreTabsTrigger value="card" icon="clipboardList">Card</SUICoreTabsTrigger>
               <SUICoreTabsTrigger value="more" icon="sparkles">More</SUICoreTabsTrigger>
             </SUICoreTabsList>
 
@@ -261,6 +268,10 @@ export const TemplateDialog: React.FC<TemplateDialogProps> = ({
                   ))}
                 </div>
                 {!techValid && <SUICoreBodyText size="xs" tone="danger">Select at least one technician.</SUICoreBodyText>}
+              </SUICoreTabsContent>
+
+              <SUICoreTabsContent value="card">
+                <CardLayoutEditor rows={cardRowsDraft} onChange={setCardRowsDraft} />
               </SUICoreTabsContent>
 
               <SUICoreTabsContent value="more" className="flex flex-col gap-5">

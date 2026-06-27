@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect, useCallback, useMemo, lazy, Suspense } from 'react';
-import type { Resource, EventItem, NewEventData } from './types';
+import type { Resource, EventItem, NewEventData, CardFieldKey } from './types';
 import { TimelineControlsHeader } from './TimelineControlsHeader';
 import { ResourceSidebar } from './ResourceSidebar';
 import { TimelineGrid } from './TimelineGrid';
@@ -12,7 +12,7 @@ const TechnicianCreationDialog = lazy(() =>
   import('./TechnicianCreationDialog').then((m) => ({ default: m.TechnicianCreationDialog }))
 );
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { LAYOUT_CONSTANTS } from './constants';
+import { LAYOUT_CONSTANTS, DEFAULT_CARD_ROWS } from './constants';
 import { getHourWidth } from './_lib/zoom';
 import { slotToDate, formatSlotRange } from './_lib/format';
 import { computeLayout } from './_lib/computeLayout';
@@ -69,6 +69,8 @@ export interface ResourceSchedulerProps {
   snapMinutes?: number;
   /** Whether an event's detail card opens on hover or on click. */
   detailTrigger?: 'hover' | 'click';
+  /** Which fields are visible on the timeline event card, arranged by row. */
+  cardRows?: CardFieldKey[][];
   canChangeRows?: boolean;
   renderResource?: (resource: Resource, onGripMouseDown?: (e: React.PointerEvent) => void) => React.ReactNode;
   renderEvent?: (event: EventItem, onDragStart?: (e: React.PointerEvent, eventId: string) => void, onResizeStart?: (e: React.PointerEvent, eventId: string, direction: 'left' | 'right') => void) => React.ReactNode;
@@ -85,7 +87,7 @@ export interface ResourceSchedulerProps {
 
 export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
   resources, events, dayStartHour = 6, dayEndHour = 20, snapMinutes = 15, detailTrigger = 'hover', canChangeRows = true,
-  renderResource, renderEvent, onEventChange, onEventAdd, onResourcesReorder, fetchEventsForDate, onSaveEvent, onOpenTemplates, onResourceAdd
+  renderResource, renderEvent, onEventChange, onEventAdd, onResourcesReorder, fetchEventsForDate, onSaveEvent, onOpenTemplates, onResourceAdd, cardRows = DEFAULT_CARD_ROWS
 }) => {
   const gridRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -558,6 +560,7 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
             startCardDrag={cardDrag.start} startCardResize={cardResize.start} handleRowPointerDown={slotSel.start}
             renderEvent={renderEvent} interactionEventId={cardDrag.interaction?.eventId}
             detailTrigger={detailTrigger}
+            cardRows={cardRows}
             rowHeights={layoutEngine.rowHeights} eventLanes={layoutEngine.eventLanes}
             eventSpans={layoutEngine.eventSpans} eventsByResource={layoutEngine.eventsByResource}
             animateLayout={animateLayout}
