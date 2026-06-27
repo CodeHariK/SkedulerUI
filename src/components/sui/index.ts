@@ -15,4 +15,18 @@ export {
   SUICorePopoverContent,
 } from "./core/Popover/SUICorePopover";
 export { SUICoreDatePicker } from "./core/DatePicker/SUICoreDatePicker";
+export {
+  SUICoreTabs,
+  SUICoreTabsList,
+  SUICoreTabsTrigger,
+  SUICoreTabsContent,
+} from "./core/Tabs/SUICoreTabs";
+export {
+  SUICoreDropdownMenu,
+  SUICoreDropdownMenuTrigger,
+  SUICoreDropdownMenuContent,
+  SUICoreDropdownMenuItem,
+} from "./core/DropdownMenu/SUICoreDropdownMenu";
+export { SUICoreCheckbox } from "./core/Checkbox/SUICoreCheckbox";
+export { SUICoreSwitch } from "./core/Switch/SUICoreSwitch";
 export { SUILayoutModal } from "./layout/Modal/SUILayoutModal";

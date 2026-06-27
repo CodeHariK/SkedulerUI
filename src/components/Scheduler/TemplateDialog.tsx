@@ -7,9 +7,14 @@ import {
   SUICoreBodyText,
   SUICoreBadge,
   SUICoreIcon,
+  SUICoreTabs,
+  SUICoreTabsList,
+  SUICoreTabsTrigger,
+  SUICoreTabsContent,
+  SUICoreCheckbox,
+  SUICoreSwitch,
 } from '@/components/sui';
 import { cn } from '@/lib/cn';
-import type { IconName } from '@/components/sui';
 import type { Resource, SchedulerTemplate } from './types';
 
 interface TemplateDialogProps {
@@ -61,6 +66,8 @@ export const TemplateDialog: React.FC<TemplateDialogProps> = ({
   const [startHour, setStartHour] = React.useState(6);
   const [endHour, setEndHour] = React.useState(20);
   const [snapMinutes, setSnapMinutes] = React.useState(15);
+  const [themeDraft, setThemeDraft] = React.useState<'light' | 'dark'>('light');
+  const [detailTriggerDraft, setDetailTriggerDraft] = React.useState<'hover' | 'click'>('hover');
   const [allMode, setAllMode] = React.useState(true);
   const [selectedIds, setSelectedIds] = React.useState<string[]>([]);
 
@@ -76,6 +83,8 @@ export const TemplateDialog: React.FC<TemplateDialogProps> = ({
       setStartHour(template.dayStartHour);
       setEndHour(template.dayEndHour);
       setSnapMinutes(template.snapMinutes);
+      setThemeDraft(template.theme);
+      setDetailTriggerDraft(template.detailTrigger);
       setAllMode(template.visibleResourceIds === null);
       setSelectedIds(template.visibleResourceIds ?? allResources.map((r) => r.id));
     } else {
@@ -84,6 +93,8 @@ export const TemplateDialog: React.FC<TemplateDialogProps> = ({
       setStartHour(6);
       setEndHour(20);
       setSnapMinutes(15);
+      setThemeDraft('light');
+      setDetailTriggerDraft('hover');
       setAllMode(true);
       setSelectedIds(allResources.map((r) => r.id));
     }
@@ -120,6 +131,8 @@ export const TemplateDialog: React.FC<TemplateDialogProps> = ({
       dayStartHour: startHour,
       dayEndHour: endHour,
       snapMinutes,
+      theme: themeDraft,
+      detailTrigger: detailTriggerDraft,
       visibleResourceIds: allMode ? null : selectedIds,
     });
     handleClose();
@@ -127,12 +140,6 @@ export const TemplateDialog: React.FC<TemplateDialogProps> = ({
 
   const startOptions = Array.from({ length: 24 }, (_, i) => i); // 0..23
   const endOptions = Array.from({ length: 24 }, (_, i) => i + 1).filter((h) => h > startHour);
-
-  const tabs: { id: Tab; label: string; icon: IconName }[] = [
-    { id: 'time', label: 'Time', icon: 'clock' },
-    { id: 'technicians', label: 'Technicians', icon: 'users' },
-    { id: 'more', label: 'More', icon: 'sparkles' },
-  ];
 
   const title = view === 'list' ? 'Templates' : editingId ? 'Edit Template' : 'New Template';
 
@@ -196,30 +203,15 @@ export const TemplateDialog: React.FC<TemplateDialogProps> = ({
         <div className="flex flex-col gap-4">
           <SUICoreInput label="Template name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Morning shift – Electrical" />
 
-          {/* Tabs */}
-          <div className="flex items-center gap-1 border-b border-neutral-200">
-            {tabs.map((tb) => (
-              <div
-                key={tb.id}
-                role="tab"
-                tabIndex={0}
-                aria-selected={tab === tb.id}
-                onClick={() => setTab(tb.id)}
-                onKeyDown={(e) => { if (e.key === 'Enter') setTab(tb.id); }}
-                className={cn(
-                  'flex items-center gap-1.5 px-3 py-2 text-body-sm font-medium border-b-2 -mb-px transition-colors cursor-pointer',
-                  tab === tb.id ? 'border-primary-600 text-fg-primary' : 'border-transparent text-fg-tertiary hover:text-fg-secondary',
-                )}
-              >
-                <SUICoreIcon name={tb.icon} size="sm" /> {tb.label}
-              </div>
-            ))}
-          </div>
+          <SUICoreTabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
+            <SUICoreTabsList>
+              <SUICoreTabsTrigger value="time" icon="clock">Time</SUICoreTabsTrigger>
+              <SUICoreTabsTrigger value="technicians" icon="users">Technicians</SUICoreTabsTrigger>
+              <SUICoreTabsTrigger value="more" icon="sparkles">More</SUICoreTabsTrigger>
+            </SUICoreTabsList>
 
-          {/* Tab content */}
-          <div className="min-h-[220px]">
-            {tab === 'time' && (
-              <div className="flex flex-col gap-4">
+            <div className="min-h-[220px] pt-4">
+              <SUICoreTabsContent value="time" className="flex flex-col gap-4">
                 <SUICoreBodyText size="xs" tone="secondary">Choose the time window shown on the timeline.</SUICoreBodyText>
                 <div className="flex items-start gap-3">
                   <SUICoreSelect
@@ -246,64 +238,49 @@ export const TemplateDialog: React.FC<TemplateDialogProps> = ({
                   />
                   <SUICoreBodyText size="2xs" tone="muted" className="mt-1">Jobs snap to this grid when created, dragged, or resized.</SUICoreBodyText>
                 </div>
-              </div>
-            )}
+              </SUICoreTabsContent>
 
-            {tab === 'technicians' && (
-              <div className="flex flex-col gap-2">
+              <SUICoreTabsContent value="technicians" className="flex flex-col gap-3">
                 <div className="flex items-center justify-between">
                   <SUICoreBodyText size="xs" tone="secondary">Which technicians appear in the sidebar and timeline.</SUICoreBodyText>
-                  <div
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => setAllMode((v) => !v)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') setAllMode((v) => !v); }}
-                    className={cn(
-                      'text-body-xs font-medium rounded-pill px-2.5 py-1 border transition-colors cursor-pointer',
-                      allMode ? 'border-primary-600/40 text-primary-600 bg-primary-50' : 'border-neutral-200 text-fg-secondary hover:bg-neutral-50',
-                    )}
-                  >
-                    {allMode ? 'Showing all' : 'Custom selection'}
-                  </div>
+                  <SUICoreSwitch label="Show all" checked={allMode} onCheckedChange={setAllMode} />
                 </div>
                 <div className={cn('flex flex-col gap-1 max-h-[180px] overflow-y-auto pr-1', allMode && 'opacity-50 pointer-events-none')}>
-                  {allResources.map((r) => {
-                    const checked = allMode || selectedIds.includes(r.id);
-                    return (
-                      <div
-                        key={r.id}
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => toggleTechnician(r.id)}
-                        onKeyDown={(e) => { if (e.key === 'Enter') toggleTechnician(r.id); }}
-                        className="flex items-center gap-2.5 rounded-md px-2 py-1.5 hover:bg-neutral-50 text-left transition-colors cursor-pointer"
-                      >
-                        <span className={cn(
-                          'flex items-center justify-center size-4 rounded border shrink-0',
-                          checked ? 'bg-primary-600 border-primary-600 text-white' : 'border-neutral-300',
-                        )}>
-                          {checked && <SUICoreIcon name="check" size="xs" />}
-                        </span>
-                        <SUICoreBodyText as="span" size="sm" className="truncate">{r.name}</SUICoreBodyText>
-                        {r.metadata?.role && (
-                          <span className="text-body-2xs uppercase tracking-wider text-fg-tertiary ml-auto shrink-0">{r.metadata.role}</span>
-                        )}
-                      </div>
-                    );
-                  })}
+                  {allResources.map((r) => (
+                    <div key={r.id} className="flex items-center gap-2.5 rounded-md px-2 py-1.5 hover:bg-neutral-50">
+                      <SUICoreCheckbox
+                        checked={allMode || selectedIds.includes(r.id)}
+                        disabled={allMode}
+                        onCheckedChange={() => toggleTechnician(r.id)}
+                        label={r.name}
+                      />
+                      {r.metadata?.role && (
+                        <span className="text-body-2xs uppercase tracking-wider text-fg-tertiary ml-auto shrink-0">{r.metadata.role}</span>
+                      )}
+                    </div>
+                  ))}
                 </div>
                 {!techValid && <SUICoreBodyText size="xs" tone="danger">Select at least one technician.</SUICoreBodyText>}
-              </div>
-            )}
+              </SUICoreTabsContent>
 
-            {tab === 'more' && (
-              <div className="flex flex-col items-center justify-center text-center h-[200px] gap-2">
-                <SUICoreIcon name="sparkles" size="lg" className="text-fg-tertiary" />
-                <SUICoreBodyText size="sm" weight="medium" tone="secondary">More settings coming soon</SUICoreBodyText>
-                <SUICoreBodyText size="xs" tone="muted">This tab is reserved for the next set of template options.</SUICoreBodyText>
-              </div>
-            )}
-          </div>
+              <SUICoreTabsContent value="more" className="flex flex-col gap-5">
+                <div className="flex flex-col gap-2">
+                  <SUICoreBodyText size="xs" tone="secondary">Appearance applied when this template is active.</SUICoreBodyText>
+                  <div className="flex items-center gap-2">
+                    <SUICoreButton variant={themeDraft === 'light' ? 'primary' : 'outline'} icon="sun" text="Light" onClick={() => setThemeDraft('light')} />
+                    <SUICoreButton variant={themeDraft === 'dark' ? 'primary' : 'outline'} icon="moon" text="Dark" onClick={() => setThemeDraft('dark')} />
+                  </div>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <SUICoreBodyText size="xs" tone="secondary">When to open an event's detail card.</SUICoreBodyText>
+                  <div className="flex items-center gap-2">
+                    <SUICoreButton variant={detailTriggerDraft === 'hover' ? 'primary' : 'outline'} icon="eye" text="On hover" onClick={() => setDetailTriggerDraft('hover')} />
+                    <SUICoreButton variant={detailTriggerDraft === 'click' ? 'primary' : 'outline'} icon="clipboardList" text="On click" onClick={() => setDetailTriggerDraft('click')} />
+                  </div>
+                </div>
+              </SUICoreTabsContent>
+            </div>
+          </SUICoreTabs>
         </div>
       )}
     </SUILayoutModal>

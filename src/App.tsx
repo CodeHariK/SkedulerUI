@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { NavigationHeader } from './components/NavigationHeader';
 import { ResourceScheduler } from './components/Scheduler/ResourceScheduler';
 import { TemplateDialog } from './components/Scheduler/TemplateDialog';
@@ -10,7 +10,7 @@ import { Toaster } from '@/components/ui/sonner';
 
 // Fallback view used only when no template is active (e.g. all templates
 // deleted): show every technician across the full default window.
-const FALLBACK_VIEW = { dayStartHour: 6, dayEndHour: 20, visibleResourceIds: null as string[] | null, snapMinutes: 15 };
+const FALLBACK_VIEW = { dayStartHour: 6, dayEndHour: 20, visibleResourceIds: null as string[] | null, snapMinutes: 15, theme: 'light' as 'light' | 'dark', detailTrigger: 'hover' as 'hover' | 'click' };
 
 // Two seeded dummy templates for testing — different technicians, hours, snap.
 const DUMMY_TEMPLATES: SchedulerTemplate[] = [
@@ -21,6 +21,8 @@ const DUMMY_TEMPLATES: SchedulerTemplate[] = [
     dayEndHour: 12,
     visibleResourceIds: ['resource-1', 'resource-2', 'resource-3'],
     snapMinutes: 15,
+    theme: 'light',
+    detailTrigger: 'hover',
   },
   {
     id: 'tpl-evening',
@@ -29,6 +31,8 @@ const DUMMY_TEMPLATES: SchedulerTemplate[] = [
     dayEndHour: 20,
     visibleResourceIds: ['resource-4', 'resource-5', 'resource-6', 'resource-7'],
     snapMinutes: 30,
+    theme: 'dark',
+    detailTrigger: 'click',
   },
 ];
 
@@ -61,7 +65,16 @@ function App() {
     () => [...baseSchedulerResources, ...addedResources],
     [baseSchedulerResources, addedResources]
   );
-  const handleAddResource = (resource: Resource) => setAddedResources(prev => [...prev, resource]);
+  const handleAddResource = (resource: Resource) => {
+    setAddedResources(prev => [...prev, resource]);
+    // Enable the new technician in the active template's custom selection so it
+    // shows immediately. ("All technicians" templates already include it.)
+    setTemplates(prev => prev.map(t =>
+      t.id === activeTemplateId && t.visibleResourceIds !== null
+        ? { ...t, visibleResourceIds: [...t.visibleResourceIds, resource.id] }
+        : t,
+    ));
+  };
 
   // Session-only template state (resets on reload, per product decision).
   const [templates, setTemplates] = useState<SchedulerTemplate[]>(DUMMY_TEMPLATES);
@@ -73,6 +86,11 @@ function App() {
     () => templates.find(t => t.id === activeTemplateId) ?? FALLBACK_VIEW,
     [templates, activeTemplateId]
   );
+
+  // Light/dark is a per-template setting — apply the active template's theme.
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', activeView.theme === 'dark');
+  }, [activeView.theme]);
 
   // Resources/events the Scheduler tab actually shows, filtered by the template.
   const visibleSchedulerResources = useMemo(() => {
@@ -155,6 +173,7 @@ function App() {
             dayStartHour={activeView.dayStartHour}
             dayEndHour={activeView.dayEndHour}
             snapMinutes={activeView.snapMinutes}
+            detailTrigger={activeView.detailTrigger}
             canChangeRows={true}
             fetchEventsForDate={fetchSchedulerDataByDate}
             onSaveEvent={saveEventToDatabase}

@@ -21,6 +21,7 @@ import { useSlotSelection } from './_lib/useSlotSelection';
 import { useRowReorder } from './_lib/useRowReorder';
 import { useCardDrag } from './_lib/useCardDrag';
 import { useCardResize } from './_lib/useCardResize';
+import { DetailOpenContext } from './_lib/detailOpen';
 // Shallow metadata comparison — avoids the cost of JSON.stringify on every
 // item during prop-sync checks (which run on each pointer-up and prop change).
 const isShallowMetaDifferent = (a?: Record<string, unknown>, b?: Record<string, unknown>) => {
@@ -66,6 +67,8 @@ export interface ResourceSchedulerProps {
   dayEndHour?: number;
   /** Snap/grid interval in minutes; drives how many slots make up an hour. */
   snapMinutes?: number;
+  /** Whether an event's detail card opens on hover or on click. */
+  detailTrigger?: 'hover' | 'click';
   canChangeRows?: boolean;
   renderResource?: (resource: Resource, onGripMouseDown?: (e: React.PointerEvent) => void) => React.ReactNode;
   renderEvent?: (event: EventItem, onDragStart?: (e: React.PointerEvent, eventId: string) => void, onResizeStart?: (e: React.PointerEvent, eventId: string, direction: 'left' | 'right') => void) => React.ReactNode;
@@ -81,7 +84,7 @@ export interface ResourceSchedulerProps {
 }
 
 export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
-  resources, events, dayStartHour = 6, dayEndHour = 20, snapMinutes = 15, canChangeRows = true,
+  resources, events, dayStartHour = 6, dayEndHour = 20, snapMinutes = 15, detailTrigger = 'hover', canChangeRows = true,
   renderResource, renderEvent, onEventChange, onEventAdd, onResourcesReorder, fetchEventsForDate, onSaveEvent, onOpenTemplates, onResourceAdd
 }) => {
   const gridRef = useRef<HTMLDivElement>(null);
@@ -105,11 +108,14 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
   const [currentDate, setCurrentDate] = useState<Date>(new Date(2026, 5, 18));
   const [zoomMinutes, setZoomMinutes] = useState<number>(60);
   const [isMapViewActive, setIsMapViewActive] = useState<boolean>(false);
-  const [theme, setTheme] = useState<'light' | 'dark'>('light');
 
   const [isPanning, setIsPanning] = useState(false);
   const [startX, setStartX] = useState(0);
   const [scrollLeft, setScrollLeft] = useState(0);
+
+  // Which event's detail card is open (click mode) — single-open, shared via context.
+  const [detailOpenId, setDetailOpenId] = useState<string | null>(null);
+  const detailOpenValue = useMemo(() => ({ openId: detailOpenId, setOpenId: setDetailOpenId }), [detailOpenId]);
 
   const [showJobCreationModal, setShowJobCreationModal] = useState(false);
   const [newEventData, setNewEventData] = useState<NewEventData | null>(null);
@@ -238,14 +244,6 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
   }, []);
 
   const handleMapViewToggle = useCallback(() => setIsMapViewActive(prev => !prev), []);
-  const handleThemeToggle = useCallback(() => {
-    setTheme(prev => {
-      const next = prev === 'light' ? 'dark' : 'light';
-      next === 'dark' ? document.documentElement.classList.add('dark') : document.documentElement.classList.remove('dark');
-      return next;
-    });
-  }, []);
-
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     // Left-drag pans empty gutter; middle-drag pans anywhere (incl. over rows,
     // since the row's pointerdown bails on non-left and lets this fire).
@@ -328,11 +326,25 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
       cardResize.clear();
       rowReorder.setRowDrag(null);
       rowReorder.setRowDropIndicator(null);
+      setDetailOpenId(null);
       lastInteractionRef.current = null;
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [slotSel, cardDrag, cardResize, rowReorder]);
+
+  // Close the open detail card when clicking anywhere that isn't a card or a
+  // popover surface (handles outside-click dismissal across the independent cards).
+  useEffect(() => {
+    if (detailOpenId === null) return;
+    const onPointerDown = (e: PointerEvent) => {
+      const t = e.target as Element | null;
+      if (t && (t.closest('[data-event-card]') || t.closest('[data-radix-popper-content-wrapper]'))) return;
+      setDetailOpenId(null);
+    };
+    document.addEventListener('pointerdown', onPointerDown, true);
+    return () => document.removeEventListener('pointerdown', onPointerDown, true);
+  }, [detailOpenId]);
 
   // Routes a pointer-move to whichever controller matches the active mode. Each
   // hook's `move` guards on its own mode/state, so this just dispatches.
@@ -350,7 +362,15 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
     if (activeModeRef.current === 'DRAGGING_CARD') {
       const interaction = cardDrag.interaction;
       const dropIndicator = cardDrag.dropIndicator;
-      if (interaction && dropIndicator) {
+      // Only commit if the card actually moved. A click (no movement) leaves the
+      // drop at the start columns/row — committing then would snap an off-grid
+      // event to the grid and fire a spurious save.
+      const moved = !!interaction && !!dropIndicator && (
+        dropIndicator.resourceId !== interaction.startResourceId ||
+        dropIndicator.startCol !== interaction.startColStart ||
+        dropIndicator.endCol !== interaction.startColEnd
+      );
+      if (interaction && dropIndicator && moved) {
         const finalEvent = localEvents.find(evt => evt.id === interaction.eventId);
         if (finalEvent) {
           const newResourceId = dropIndicator.resourceId;
@@ -374,7 +394,12 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
     } else if (activeModeRef.current === 'RESIZING_CARD') {
       const interaction = cardDrag.interaction;
       const resizeIndicator = cardResize.resizeIndicator;
-      if (interaction && resizeIndicator) {
+      // Only commit if an edge actually moved (a click on a handle shouldn't snap/save).
+      const resized = !!interaction && !!resizeIndicator && (
+        resizeIndicator.startCol !== interaction.startColStart ||
+        resizeIndicator.endCol !== interaction.startColEnd
+      );
+      if (interaction && resizeIndicator && resized) {
         const finalEvent = localEvents.find(evt => evt.id === interaction.eventId);
         if (finalEvent) {
           const newStartTime = slotToDate(resizeIndicator.startCol, currentDate, dayStartHour, slotsPerHour);
@@ -414,8 +439,8 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
       const selection = slotSel.selection;
       const start = Math.min(selection.startSlot, selection.currentSlot);
       const end = Math.max(selection.startSlot, selection.currentSlot);
-      // Duration follows the swept range only (no forced 1-hour default); a
-      // bare click is the smallest unit (one slot). Matches the ghost.
+      // `selection` only exists after a real drag (a bare click sets none), so
+      // reaching here always means the user swept a range.
       const finalEnd = Math.min(totalSlots, end + 1);
 
       setNewEventData({
@@ -487,6 +512,7 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
   }, []);
 
   return (
+    <DetailOpenContext.Provider value={detailOpenValue}>
     <div className="flex flex-col w-full h-full flex-1 bg-background overflow-hidden relative transition-colors duration-200">
       <TimelineControlsHeader
         currentDate={currentDate} onDateChange={setCurrentDate}
@@ -494,7 +520,6 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
         onReset={handleReset} onCreateJob={handleCreateJobHeader}
         onAddTechnician={() => setShowTechnicianModal(true)}
         isMapViewActive={isMapViewActive} onMapViewToggle={handleMapViewToggle}
-        theme={theme} onThemeToggle={handleThemeToggle}
         onOpenTemplates={onOpenTemplates}
       />
       <div className="flex-1 min-h-0 relative overflow-hidden">
@@ -532,6 +557,7 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
             totalSlots={totalSlots}
             startCardDrag={cardDrag.start} startCardResize={cardResize.start} handleRowPointerDown={slotSel.start}
             renderEvent={renderEvent} interactionEventId={cardDrag.interaction?.eventId}
+            detailTrigger={detailTrigger}
             rowHeights={layoutEngine.rowHeights} eventLanes={layoutEngine.eventLanes}
             eventSpans={layoutEngine.eventSpans} eventsByResource={layoutEngine.eventsByResource}
             animateLayout={animateLayout}
@@ -556,5 +582,6 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({
         </Suspense>
       )}
     </div>
+    </DetailOpenContext.Provider>
   );
 };

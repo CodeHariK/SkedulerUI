@@ -1,12 +1,19 @@
 // Slot-selection controller: click-drag on an empty row to mark a time range,
 // which on pointer-up seeds the job-creation dialog. Owns its own `selection`
 // state; ResourceScheduler reads it back to build the NewEventData on commit.
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import type { InteractionContext, Selection } from './interactionTypes';
 
+// Minimum pointer travel (px) before a press becomes a drag-selection. A plain
+// click stays below this, so it shows no ghost and opens no dialog.
+const DRAG_THRESHOLD = 4;
+
 export function useSlotSelection(ctx: InteractionContext) {
   const [selection, setSelection] = useState<Selection>(null);
+  // Where the press began — held until the pointer moves past the threshold, at
+  // which point the selection (and its ghost) is created.
+  const pendingStartRef = useRef<{ slot: number; resourceId: string } | null>(null);
 
   const { gridRef, activeModeRef, lastInteractionRef, metricsRef, activeSlotWidthRef, pointerStartPosRef, captureMetrics } = ctx;
 
@@ -26,26 +33,39 @@ export function useSlotSelection(ctx: InteractionContext) {
         Math.floor((e.clientX - metricsRef.current.gridLeft + gridRef.current.scrollLeft) / activeSlotWidthRef.current),
       );
 
-      setSelection({ resourceId, startSlot: slotIdx, currentSlot: slotIdx });
+      // Defer the selection until an actual drag — a bare click does nothing.
+      pendingStartRef.current = { slot: slotIdx, resourceId };
       lastInteractionRef.current = { slot: slotIdx };
     },
-    // refs are stable; captureMetrics is the only reactive dep
     [gridRef, activeModeRef, lastInteractionRef, metricsRef, activeSlotWidthRef, pointerStartPosRef, captureMetrics],
   );
 
   const move = useCallback(
     (e: ReactPointerEvent) => {
       const gridEl = gridRef.current;
-      if (!gridEl) return;
+      const pending = pendingStartRef.current;
+      if (!gridEl || !pending) return;
+
       const currentSlot = Math.max(
         0,
         Math.floor((e.clientX - metricsRef.current.gridLeft + gridEl.scrollLeft) / activeSlotWidthRef.current),
       );
-      // Update only when the slot boundary actually changes (functional update
-      // avoids needing `selection` as a dependency).
-      setSelection((prev) => (prev && prev.currentSlot !== currentSlot ? { ...prev, currentSlot } : prev));
+
+      setSelection((prev) => {
+        if (prev) {
+          // Already dragging — track the moving edge.
+          return prev.currentSlot !== currentSlot ? { ...prev, currentSlot } : prev;
+        }
+        // Not selecting yet — begin only once the pointer travels past the threshold.
+        const dx = Math.abs(e.clientX - pointerStartPosRef.current.x);
+        const dy = Math.abs(e.clientY - pointerStartPosRef.current.y);
+        if (dx > DRAG_THRESHOLD || dy > DRAG_THRESHOLD) {
+          return { resourceId: pending.resourceId, startSlot: pending.slot, currentSlot };
+        }
+        return prev;
+      });
     },
-    [gridRef, metricsRef, activeSlotWidthRef],
+    [gridRef, metricsRef, activeSlotWidthRef, pointerStartPosRef],
   );
 
   return { selection, setSelection, start, move };

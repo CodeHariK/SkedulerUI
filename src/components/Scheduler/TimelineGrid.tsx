@@ -44,6 +44,7 @@ interface TimelineGridProps {
   eventSpans: Record<string, { gridColumnStart: number; gridColumnEnd: number }>;
   eventsByResource: Record<string, EventItem[]>;
   animateLayout: boolean;
+  detailTrigger: 'hover' | 'click';
 }
 
 // ---------------------------------------------------------------------------
@@ -69,6 +70,7 @@ interface RowContentProps {
   startCardDrag: (e: React.PointerEvent, eventId: string) => void;
   startCardResize: (e: React.PointerEvent, eventId: string, direction: 'left' | 'right') => void;
   renderEvent?: TimelineGridProps['renderEvent'];
+  detailTrigger: 'hover' | 'click';
 }
 
 // Floating "start – end" pill shown above an interaction ghost.
@@ -82,7 +84,7 @@ const RowContent: React.FC<RowContentProps> = ({
   resource, resourceEvents, totalSlots, isClone,
   selectionForRow, selectionLabel, dropLabel, resizeLabel, dropIndicatorForRow, resizeIndicatorForRow,
   interactionEventId, isDragActive, eventSpans, eventLanes,
-  draggedElementRef, startCardDrag, startCardResize, renderEvent,
+  draggedElementRef, startCardDrag, startCardResize, renderEvent, detailTrigger,
 }) => {
   const isSelectedRow = !!selectionForRow;
   const startCol = isSelectedRow ? Math.min(selectionForRow!.startSlot, selectionForRow!.currentSlot) : 0;
@@ -138,6 +140,7 @@ const RowContent: React.FC<RowContentProps> = ({
                 <EventCard
                   event={event} resource={resource} isDragging={isDraggingThis}
                   onDragStart={startCardDrag} onResizeStart={startCardResize}
+                  detailTrigger={detailTrigger}
                 />
               )}
             </div>
@@ -183,6 +186,7 @@ interface TimelineRowProps {
   startCardResize: (e: React.PointerEvent, eventId: string, direction: 'left' | 'right') => void;
   handleRowPointerDown: (e: React.PointerEvent, resourceId: string) => void;
   renderEvent?: TimelineGridProps['renderEvent'];
+  detailTrigger: 'hover' | 'click';
 }
 
 const TimelineRow: React.FC<TimelineRowProps> = memo(({
@@ -190,7 +194,7 @@ const TimelineRow: React.FC<TimelineRowProps> = memo(({
   selectionForRow, selectionLabel, dropLabel, resizeLabel, dropIndicatorForRow, resizeIndicatorForRow, interactionEventId, isDragActive,
   hasActiveCard, isDraggingRow, showDropLine, dropLineBelow, animateLayout,
   eventSpans, eventLanes, draggedElementRef, draggedGridRowRef,
-  startCardDrag, startCardResize, handleRowPointerDown, renderEvent,
+  startCardDrag, startCardResize, handleRowPointerDown, renderEvent, detailTrigger,
 }) => {
   // Vertical hour separators, drawn as a tiled background so they sit above the
   // row stripe but below the event cards. Sized as a PERCENTAGE of the row
@@ -232,7 +236,7 @@ const TimelineRow: React.FC<TimelineRowProps> = memo(({
           resizeIndicatorForRow={resizeIndicatorForRow} interactionEventId={interactionEventId}
           isDragActive={isDragActive} eventSpans={eventSpans} eventLanes={eventLanes}
           draggedElementRef={draggedElementRef} startCardDrag={startCardDrag}
-          startCardResize={startCardResize} renderEvent={renderEvent}
+          startCardResize={startCardResize} renderEvent={renderEvent} detailTrigger={detailTrigger}
         />
       </div>
 
@@ -248,7 +252,7 @@ const TimelineRow: React.FC<TimelineRowProps> = memo(({
             resizeIndicatorForRow={null} interactionEventId={interactionEventId}
             isDragActive={isDragActive} eventSpans={eventSpans} eventLanes={eventLanes}
             draggedElementRef={draggedElementRef} startCardDrag={startCardDrag}
-            startCardResize={startCardResize} renderEvent={renderEvent}
+            startCardResize={startCardResize} renderEvent={renderEvent} detailTrigger={detailTrigger}
           />
         </div>
       )}
@@ -270,7 +274,7 @@ export const TimelineGrid: React.FC<TimelineGridProps> = memo(({
   selection, selectionLabel, dropLabel, resizeLabel, totalSlots,
   startCardDrag, startCardResize, handleRowPointerDown,
   renderEvent, interactionEventId,
-  virtualRows, totalSize, rowHeights, eventLanes, eventSpans, eventsByResource, animateLayout,
+  virtualRows, totalSize, rowHeights, eventLanes, eventSpans, eventsByResource, animateLayout, detailTrigger,
 }) => {
   const isDragActive = dropIndicator !== null;
   // Width of one hour column in px — used to position the vertical hour lines.
@@ -347,6 +351,7 @@ export const TimelineGrid: React.FC<TimelineGridProps> = memo(({
                   startCardResize={startCardResize}
                   handleRowPointerDown={handleRowPointerDown}
                   renderEvent={renderEvent}
+                  detailTrigger={detailTrigger}
                 />
               );
             })}

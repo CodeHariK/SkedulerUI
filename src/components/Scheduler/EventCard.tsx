@@ -4,6 +4,7 @@ import { cn } from '@/lib/cn';
 import { SUICoreBadge, SUICorePopover, SUICorePopoverTrigger, SUICoreBodyText, SUICoreIcon } from '@/components/sui';
 import { EventDetailPopover } from './EventDetailPopover';
 import { STATUS_BADGE_VARIANT, getIsDispatched } from './constants';
+import { useDetailOpen } from './_lib/detailOpen';
 
 interface EventCardProps {
   event: EventItem;
@@ -11,7 +12,12 @@ interface EventCardProps {
   isDragging: boolean;
   onDragStart: (e: React.PointerEvent, eventId: string) => void;
   onResizeStart: (e: React.PointerEvent, eventId: string, direction: 'left' | 'right') => void;
+  /** Whether the detail card opens on hover or on click. */
+  detailTrigger?: 'hover' | 'click';
 }
+
+// A press that moves less than this (px) counts as a click, not a drag.
+const DRAG_THRESHOLD = 4;
 
 export const EventCard: React.FC<EventCardProps> = React.memo(({
   event,
@@ -19,32 +25,58 @@ export const EventCard: React.FC<EventCardProps> = React.memo(({
   isDragging,
   onDragStart,
   onResizeStart,
+  detailTrigger = 'hover',
 }) => {
   const location = event.metadata?.location || '';
   const price = event.metadata?.price || 0;
 
+  const isHoverMode = detailTrigger === 'hover';
+
+  // Click-mode open state is shared (single-open + outside-close) via context.
+  const { openId, setOpenId } = useDetailOpen();
+  const isClickOpen = openId === event.id;
+
   const [isHovering, setIsHovering] = useState(false);
   const openTimerRef = useRef<number | null>(null);
   const closeTimerRef = useRef<number | null>(null);
+
+  // Pointer x within the card, so the detail card opens near the pointer rather
+  // than pinned to the card's left edge.
+  const pointerOffsetRef = useRef(0);
+  const [anchorOffset, setAnchorOffset] = useState(0);
+  const trackPointer = (e: React.PointerEvent) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    pointerOffsetRef.current = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
+  };
+
+  // Click-mode drag is deferred until the pointer moves past the threshold, so a
+  // plain click never starts a drag (and so never snaps/saves) — it just opens
+  // the detail card.
+  const downPosRef = useRef<{ x: number; y: number } | null>(null);
+  const didDragRef = useRef(false);
+
+  const open = isHoverMode ? (isHovering && !isDragging) : (isClickOpen && !isDragging);
 
   const clearTimers = () => {
     if (openTimerRef.current) window.clearTimeout(openTimerRef.current);
     if (closeTimerRef.current) window.clearTimeout(closeTimerRef.current);
   };
 
-  // Clean up timers on unmount to prevent leaks
   useEffect(() => () => clearTimers(), []);
 
-  // Shared by the card and the popover so the cursor can cross the gap onto the
-  // popover without it closing.
-  const handlePointerEnter = () => {
+  // Hover-mode open/close debounce, shared with the popover so the cursor can
+  // cross the gap onto it without closing.
+  const handlePointerEnter = (e: React.PointerEvent) => {
+    trackPointer(e);
     if (closeTimerRef.current) {
       window.clearTimeout(closeTimerRef.current);
       closeTimerRef.current = null;
     }
     if (isHovering) return;
-    // 250ms debounce prevents portal leaks during scrolling
-    openTimerRef.current = window.setTimeout(() => setIsHovering(true), 250);
+    openTimerRef.current = window.setTimeout(() => {
+      setAnchorOffset(pointerOffsetRef.current);
+      setIsHovering(true);
+    }, 250);
   };
 
   const handlePointerLeave = () => {
@@ -52,8 +84,51 @@ export const EventCard: React.FC<EventCardProps> = React.memo(({
       window.clearTimeout(openTimerRef.current);
       openTimerRef.current = null;
     }
-    // Brief close delay so the cursor can travel from the card onto the popover.
     closeTimerRef.current = window.setTimeout(() => setIsHovering(false), 120);
+  };
+
+  const handleCardPointerDown = (e: React.PointerEvent) => {
+    clearTimers();
+    trackPointer(e);
+    if (isHoverMode) {
+      setIsHovering(false);
+      onDragStart(e, event.id); // hover mode: drag begins immediately
+    } else if (e.button === 0) {
+      // Click mode: defer drag until movement (left button only); don't
+      // preventDefault so the trigger's click can toggle the detail card.
+      downPosRef.current = { x: e.clientX, y: e.clientY };
+      didDragRef.current = false;
+    }
+  };
+
+  const handleCardPointerMove = (e: React.PointerEvent) => {
+    trackPointer(e);
+    if (isHoverMode) return;
+    const down = downPosRef.current;
+    if (!down || didDragRef.current) return;
+    if (Math.abs(e.clientX - down.x) > DRAG_THRESHOLD || Math.abs(e.clientY - down.y) > DRAG_THRESHOLD) {
+      didDragRef.current = true;
+      setOpenId(null); // a drag isn't a detail-open
+      onDragStart(e, event.id);
+    }
+  };
+
+  const handleCardPointerUp = () => {
+    if (!isHoverMode) downPosRef.current = null;
+  };
+
+  const handleCardClick = (e: React.MouseEvent) => {
+    if (isHoverMode) return;
+    if (didDragRef.current) {
+      // This "click" was actually a drag — don't toggle the detail card.
+      e.preventDefault();
+      e.stopPropagation();
+      didDragRef.current = false;
+      return;
+    }
+    // Tap toggles this card's detail (single-open enforced by shared state).
+    if (!isClickOpen) setAnchorOffset(pointerOffsetRef.current);
+    setOpenId(isClickOpen ? null : event.id);
   };
 
   const formatFullTime = (start: Date, end: Date) => {
@@ -65,25 +140,26 @@ export const EventCard: React.FC<EventCardProps> = React.memo(({
   const isDispatched = getIsDispatched(event);
 
   return (
-    <SUICorePopover
-      open={isHovering && !isDragging}
-      onOpenChange={setIsHovering}
-    >
+    <SUICorePopover open={open} onOpenChange={isHoverMode ? setIsHovering : (o) => { if (!o) setOpenId(null); }}>
       <SUICorePopoverTrigger asChild>
         <div
+          data-event-card
           className={cn(
             "flex flex-col justify-between h-[85px] p-3 pl-4 rounded-xl border border-slate-100 bg-white dark:bg-[#1a1a24] dark:border-border/30 text-left shadow-md hover:shadow-lg relative select-none touch-none cursor-pointer group",
             "transition-[box-shadow,transform,background-color] duration-200",
             "border-l-[4px]", borderClass,
             isDragging && "opacity-60 scale-[1.02] shadow-md border-primary/40 ring-1 ring-primary/20"
           )}
-          onPointerEnter={handlePointerEnter}
-          onPointerLeave={handlePointerLeave}
-          onPointerDown={(e) => {
-            clearTimers();
-            setIsHovering(false);
-            onDragStart(e, event.id);
-          }}
+          onPointerEnter={isHoverMode ? handlePointerEnter : undefined}
+          onPointerLeave={isHoverMode ? handlePointerLeave : undefined}
+          onPointerDown={handleCardPointerDown}
+          onPointerMove={handleCardPointerMove}
+          onPointerUp={isHoverMode ? undefined : handleCardPointerUp}
+          onClick={isHoverMode ? undefined : handleCardClick}
+          // Keep a card press from reaching the grid's pan handler (mousedown
+          // fires after pointerdown; in click mode no drag has started yet, so
+          // panning would otherwise hijack the press).
+          onMouseDown={(e) => e.stopPropagation()}
         >
           {/* Left Resize Handle Overlay */}
           <div
@@ -92,6 +168,7 @@ export const EventCard: React.FC<EventCardProps> = React.memo(({
               e.stopPropagation();
               clearTimers();
               setIsHovering(false);
+              downPosRef.current = null;
               onResizeStart(e, event.id, 'left');
             }}
           >
@@ -105,6 +182,7 @@ export const EventCard: React.FC<EventCardProps> = React.memo(({
               e.stopPropagation();
               clearTimers();
               setIsHovering(false);
+              downPosRef.current = null;
               onResizeStart(e, event.id, 'right');
             }}
           >
@@ -133,14 +211,14 @@ export const EventCard: React.FC<EventCardProps> = React.memo(({
         </div>
       </SUICorePopoverTrigger>
 
-      {/* Only build the detail subtree once the card is actually hovered, so the
-          thousands of idle cards never construct their popover content. */}
-      {isHovering && !isDragging && (
+      {/* Only build the detail subtree once actually open. */}
+      {open && (
         <EventDetailPopover
           event={event}
           resource={resource}
-          onPointerEnter={handlePointerEnter}
-          onPointerLeave={handlePointerLeave}
+          pointerOffset={anchorOffset}
+          onPointerEnter={isHoverMode ? handlePointerEnter : undefined}
+          onPointerLeave={isHoverMode ? handlePointerLeave : undefined}
         />
       )}
     </SUICorePopover>

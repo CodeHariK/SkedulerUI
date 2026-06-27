@@ -38,7 +38,9 @@ export function useCardDrag(ctx: InteractionContext, extras: CardDragExtras) {
 
   const start = useCallback(
     (e: ReactPointerEvent, eventId: string) => {
-      if (e.button !== 0) return;
+      // Reject middle/right only. Allow button === 0 (pointerdown, left) and
+      // button === -1 (pointermove — used by click-mode deferred drag start).
+      if (e.button > 0) return;
       e.preventDefault();
       e.stopPropagation();
       if (activeModeRef.current !== 'NONE' || !gridRef.current) return;

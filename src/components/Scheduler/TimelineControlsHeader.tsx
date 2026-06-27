@@ -6,6 +6,10 @@ import {
   SUICorePopoverTrigger,
   SUICorePopoverContent,
   SUICoreDatePicker,
+  SUICoreDropdownMenu,
+  SUICoreDropdownMenuTrigger,
+  SUICoreDropdownMenuContent,
+  SUICoreDropdownMenuItem,
 } from '@/components/sui';
 import { MIN_ZOOM, MAX_ZOOM, nextZoom, prevZoom } from './_lib/zoom';
 
@@ -19,8 +23,6 @@ interface TimelineControlsHeaderProps {
   onAddTechnician?: () => void;
   isMapViewActive: boolean;
   onMapViewToggle: () => void;
-  theme: 'light' | 'dark';
-  onThemeToggle: () => void;
   onOpenTemplates?: () => void;
 }
 
@@ -34,8 +36,6 @@ export const TimelineControlsHeader: React.FC<TimelineControlsHeaderProps> = Rea
   onAddTechnician,
   isMapViewActive,
   onMapViewToggle,
-  theme,
-  onThemeToggle,
   onOpenTemplates,
 }) => {
   const formatDateLabel = (date: Date) =>
@@ -63,9 +63,9 @@ export const TimelineControlsHeader: React.FC<TimelineControlsHeaderProps> = Rea
   React.useEffect(() => setCalendarMonth(currentDate), [currentDate]);
 
   return (
-    <div className="bg-white dark:bg-[#141414] border-b border-neutral-200 dark:border-[#2a2a2a] flex flex-col md:flex-row items-center justify-between gap-4 px-5 py-3 w-full transition-colors duration-200 select-none">
+    <div className="bg-white dark:bg-[#141414] border-b border-neutral-200 dark:border-[#2a2a2a] flex flex-col gap-4 md:grid md:grid-cols-[1fr_auto_1fr] md:items-center px-5 py-3 w-full transition-colors duration-200 select-none">
       {/* Left: Map View toggle */}
-      <div className="flex items-center w-full md:w-[240px] shrink-0">
+      <div className="flex items-center w-full md:w-auto md:justify-self-start shrink-0">
         <SUICoreButton
           variant={isMapViewActive ? 'secondary' : 'outline'}
           icon="map"
@@ -74,8 +74,8 @@ export const TimelineControlsHeader: React.FC<TimelineControlsHeaderProps> = Rea
         />
       </div>
 
-      {/* Center: Date controls */}
-      <div className="flex items-center gap-2.5">
+      {/* Center: Date controls — always centered via the middle grid column */}
+      <div className="flex items-center gap-2.5 md:justify-self-center">
         <div className="flex gap-2 items-center">
           <SUICoreButton variant="outline" size="sm" icon="chevronLeft" iconOnly aria-label="Previous day" onClick={handlePrevDay} />
 
@@ -99,8 +99,8 @@ export const TimelineControlsHeader: React.FC<TimelineControlsHeaderProps> = Rea
         <SUICoreButton variant="outline" text="Today" trailingIcon="chevronDown" onClick={handleToday} />
       </div>
 
-      {/* Right: Zoom, Reset, Add Technician, Create, Template, Theme */}
-      <div className="flex items-center gap-2 justify-end w-full md:w-auto flex-wrap">
+      {/* Right: Zoom, Reset, Add, Template */}
+      <div className="flex items-center gap-2 justify-end w-full md:w-auto md:justify-self-end flex-wrap">
         <div className="bg-white dark:bg-[#1c1c1c] border border-neutral-200 dark:border-[#2a2a2a] rounded-pill p-1.5 flex gap-2 items-center shadow-xs">
           <SUICoreButton variant="ghost" size="sm" icon="minus" iconOnly aria-label="Decrease zoom" disabled={zoomMinutes <= MIN_ZOOM} onClick={() => stepZoom(-1)} />
           <SUICoreBodyText as="span" size="sm" tone="secondary" className="min-w-[50px] text-center">
@@ -111,21 +111,20 @@ export const TimelineControlsHeader: React.FC<TimelineControlsHeaderProps> = Rea
 
         <SUICoreButton variant="outline" text="Reset" onClick={onReset} />
 
-        {onAddTechnician && (
-          <SUICoreButton variant="outline" icon="userPlus" text="Add Technician" onClick={onAddTechnician} />
-        )}
-
-        <SUICoreButton variant="primary" icon="plus" text="Create" trailingIcon="chevronDown" onClick={onCreateJob} />
+        {/* Unified Add menu: Job + Technician */}
+        <SUICoreDropdownMenu>
+          <SUICoreDropdownMenuTrigger asChild>
+            <SUICoreButton variant="primary" icon="plus" text="Add" trailingIcon="chevronDown" />
+          </SUICoreDropdownMenuTrigger>
+          <SUICoreDropdownMenuContent align="end" className="w-48">
+            <SUICoreDropdownMenuItem icon="clipboardList" onSelect={() => onCreateJob()}>Job</SUICoreDropdownMenuItem>
+            {onAddTechnician && (
+              <SUICoreDropdownMenuItem icon="userPlus" onSelect={() => onAddTechnician()}>Technician</SUICoreDropdownMenuItem>
+            )}
+          </SUICoreDropdownMenuContent>
+        </SUICoreDropdownMenu>
 
         <SUICoreButton variant="outline" icon="layoutTemplate" text="Template" onClick={onOpenTemplates} />
-
-        <SUICoreButton
-          variant="outline"
-          icon={theme === 'light' ? 'sun' : 'moon'}
-          text={theme === 'light' ? 'Light' : 'Dark'}
-          trailingIcon="chevronDown"
-          onClick={onThemeToggle}
-        />
       </div>
     </div>
   );

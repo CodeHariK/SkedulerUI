@@ -34,6 +34,10 @@ export interface SchedulerTemplate {
   visibleResourceIds: string[] | null;
   /** Snap/grid interval in minutes (1, 5, 10, 15, 30, 60). */
   snapMinutes: number;
+  /** Light/dark appearance applied when this template is active. */
+  theme: 'light' | 'dark';
+  /** Whether the event detail card opens on hover or on click. */
+  detailTrigger: 'hover' | 'click';
   /** Built-in templates can be applied but not edited or deleted. */
   isBuiltIn?: boolean;
 }

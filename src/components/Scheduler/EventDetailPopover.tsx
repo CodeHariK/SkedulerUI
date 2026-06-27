@@ -11,9 +11,14 @@ import {
 } from '@/components/sui';
 import { STATUS_BADGE_VARIANT, getIsDispatched, formatJobNumber } from './constants';
 
+// Keep in sync with the content width below (w-[320px]).
+const DETAIL_WIDTH = 320;
+
 interface EventDetailPopoverProps {
   event: EventItem;
   resource?: Resource;
+  /** Pointer x measured from the card's left edge — the card is centered on it. */
+  pointerOffset?: number;
   onPointerEnter?: React.PointerEventHandler<HTMLDivElement>;
   onPointerLeave?: React.PointerEventHandler<HTMLDivElement>;
 }
@@ -21,9 +26,13 @@ interface EventDetailPopoverProps {
 export const EventDetailPopover: React.FC<EventDetailPopoverProps> = ({
   event,
   resource,
+  pointerOffset = 0,
   onPointerEnter,
   onPointerLeave,
 }) => {
+  // Center the card on the pointer (align="start" anchors the left edge, so shift
+  // left by half the width). Radix's collision handling keeps it on-screen.
+  const alignOffset = pointerOffset - DETAIL_WIDTH / 2;
   const location = event.metadata?.location || '';
   const price = event.metadata?.price || 0;
 
@@ -42,6 +51,8 @@ export const EventDetailPopover: React.FC<EventDetailPopoverProps> = ({
       className="w-[320px] p-5 rounded-card flex flex-col gap-4 select-none"
       side="bottom"
       align="start"
+      alignOffset={alignOffset}
+      collisionPadding={8}
       onPointerEnter={onPointerEnter}
       onPointerLeave={onPointerLeave}
     >
