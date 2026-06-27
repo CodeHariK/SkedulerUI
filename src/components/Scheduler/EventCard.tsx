@@ -58,7 +58,9 @@ export const EventCard: React.FC<EventCardProps> = React.memo(({
   const downPosRef = useRef<{ x: number; y: number } | null>(null);
   const didDragRef = useRef(false);
 
-  const open = isHoverMode ? (isHovering && !isDragging) : (isClickOpen && !isDragging);
+  // Open on hover (mouse, hover mode) OR via the shared id (click + keyboard, any
+  // mode), so the detail card is reachable by keyboard regardless of trigger mode.
+  const open = !isDragging && (isHovering || isClickOpen);
 
   const clearTimers = () => {
     if (openTimerRef.current) window.clearTimeout(openTimerRef.current);
@@ -120,6 +122,18 @@ export const EventCard: React.FC<EventCardProps> = React.memo(({
     if (!isHoverMode) downPosRef.current = null;
   };
 
+  // Keyboard: Enter/Space toggles the detail card (works in hover and click modes).
+  const handleCardKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    e.preventDefault();
+    if (isClickOpen) {
+      setOpenId(null);
+    } else {
+      setAnchorOffset(e.currentTarget.getBoundingClientRect().width / 2);
+      setOpenId(event.id);
+    }
+  };
+
   const handleCardClick = (e: React.MouseEvent) => {
     if (isHoverMode) return;
     if (didDragRef.current) {
@@ -155,7 +169,7 @@ export const EventCard: React.FC<EventCardProps> = React.memo(({
         return <SUICoreBadge variant={STATUS_BADGE_VARIANT[event.status]} text={event.status} className="uppercase tracking-wider shrink-0" />;
       case 'dispatch':
         return (
-          <span className={cn('flex items-center gap-1 text-body-xs font-medium shrink-0', isDispatched ? 'text-success-500' : 'text-warning-500')}>
+          <span className={cn('flex items-center gap-1 text-body-xs font-medium shrink-0', isDispatched ? 'text-success-700' : 'text-warning-700')}>
             <SUICoreIcon name={isDispatched ? 'eye' : 'eyeOff'} size="xs" />
             {isDispatched ? 'Dispatched' : 'Pending'}
           </span>
@@ -170,13 +184,27 @@ export const EventCard: React.FC<EventCardProps> = React.memo(({
   };
 
   return (
-    <SUICorePopover open={open} onOpenChange={isHoverMode ? setIsHovering : (o) => { if (!o) setOpenId(null); }}>
+    <SUICorePopover
+      open={open}
+      onOpenChange={(o) => {
+        if (!o) {
+          setIsHovering(false);
+          if (isClickOpen) setOpenId(null);
+        } else if (isHoverMode) {
+          setIsHovering(true);
+        }
+      }}
+    >
       <SUICorePopoverTrigger asChild>
         <div
           data-event-card
+          role="button"
+          tabIndex={0}
+          aria-label={`${event.title} — ${formatFullTime(event.startTime, event.endTime)}. ${event.status}. Press Enter for details.`}
           className={cn(
             "flex flex-col justify-between h-[85px] p-3 pl-4 rounded-xl border border-slate-100 bg-white dark:bg-[#1a1a24] dark:border-border/30 text-left shadow-md hover:shadow-lg relative select-none touch-none cursor-pointer group",
             "transition-[box-shadow,transform,background-color] duration-200",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-300",
             "border-l-[4px]", borderClass,
             isDragging && "opacity-60 scale-[1.02] shadow-md border-primary/40 ring-1 ring-primary/20"
           )}
@@ -186,6 +214,7 @@ export const EventCard: React.FC<EventCardProps> = React.memo(({
           onPointerMove={handleCardPointerMove}
           onPointerUp={isHoverMode ? undefined : handleCardPointerUp}
           onClick={isHoverMode ? undefined : handleCardClick}
+          onKeyDown={handleCardKeyDown}
           // Keep a card press from reaching the grid's pan handler (mousedown
           // fires after pointerdown; in click mode no drag has started yet, so
           // panning would otherwise hijack the press).
@@ -227,7 +256,7 @@ export const EventCard: React.FC<EventCardProps> = React.memo(({
               }).filter(Boolean);
               if (fieldNodes.length === 0) return null;
               return (
-                <div key={rowIdx} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 min-w-0 overflow-hidden">
+                <div key={rowIdx} className="flex flex-nowrap items-center gap-x-3 min-w-0 overflow-hidden">
                   {fieldNodes}
                 </div>
               );

@@ -14,10 +14,10 @@ const badgeVariants = cva(
       variant: {
         neutral: "bg-neutral-100 text-fg-secondary ring-neutral-200",
         primary: "bg-primary-50 text-primary-700 ring-primary-100",
-        success: "bg-success-500/10 text-success-500 ring-success-500/20",
-        warning: "bg-warning-500/10 text-warning-500 ring-warning-500/30",
+        success: "bg-success-500/10 text-success-700 ring-success-500/20",
+        warning: "bg-warning-500/10 text-warning-700 ring-warning-500/30",
         danger: "bg-danger-50 text-danger-700 ring-danger-100",
-        info: "bg-info-500/10 text-info-500 ring-info-500/20",
+        info: "bg-info-500/10 text-info-700 ring-info-500/20",
       },
     },
     defaultVariants: { size: "sm", variant: "neutral" },

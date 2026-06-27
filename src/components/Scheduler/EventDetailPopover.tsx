@@ -98,7 +98,7 @@ export const EventDetailPopover: React.FC<EventDetailPopoverProps> = ({
 
         <div className="flex justify-between items-center gap-2">
           <span className="text-fg-tertiary">Dispatch</span>
-          <div className={cn('flex items-center gap-1 font-semibold', isDispatched ? 'text-success-500' : 'text-warning-500')}>
+          <div className={cn('flex items-center gap-1 font-semibold', isDispatched ? 'text-success-700' : 'text-warning-700')}>
             <SUICoreIcon name={isDispatched ? 'eye' : 'eyeOff'} size="xs" />
             <span>{isDispatched ? 'Dispatched' : 'Pending'}</span>
           </div>

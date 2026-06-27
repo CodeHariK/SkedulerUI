@@ -153,7 +153,7 @@ export const TemplateDialog: React.FC<TemplateDialogProps> = ({
     view === 'editor' ? (
       <>
         {editingId && (
-          <SUICoreButton variant="ghost" icon="trash2" text="Delete" className="text-danger-500 mr-auto" onClick={handleDelete} />
+          <SUICoreButton variant="ghost" icon="trash2" text="Delete" className="text-danger-600 mr-auto" onClick={handleDelete} />
         )}
         <SUICoreButton variant="outline" text="Cancel" onClick={() => setView('list')} />
         {editingId && <SUICoreButton variant="secondary" text="Apply" onClick={() => onApply(editingId)} />}
@@ -173,10 +173,12 @@ export const TemplateDialog: React.FC<TemplateDialogProps> = ({
                   key={t.id}
                   role="button"
                   tabIndex={0}
+                  aria-label={`${t.name}${isActive ? ' (active)' : ''}`}
                   onClick={() => handleRowClick(t)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') handleRowClick(t); }}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleRowClick(t); } }}
                   className={cn(
                     'w-full text-left flex items-center gap-2 rounded-lg border p-3 transition-colors cursor-pointer',
+                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-200',
                     isActive ? 'border-primary-600/50 bg-primary-50' : 'border-neutral-200 hover:bg-neutral-50',
                   )}
                 >

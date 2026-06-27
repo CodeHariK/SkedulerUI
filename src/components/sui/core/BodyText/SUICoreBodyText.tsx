@@ -19,7 +19,7 @@ const bodyTextVariants = cva("", {
       secondary: "text-fg-secondary",
       muted: "text-fg-tertiary",
       disabled: "text-fg-disabled",
-      danger: "text-danger-500",
+      danger: "text-danger-600",
       inverse: "text-fg-inverse",
     },
   },

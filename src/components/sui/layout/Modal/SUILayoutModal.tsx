@@ -66,6 +66,50 @@ export function SUILayoutModal({
     };
   }, [open]);
 
+  // Focus management: move focus into the dialog on open, trap Tab within it,
+  // and restore focus to the previously-focused element on close.
+  useEffect(() => {
+    if (!open) return;
+    const container = containerRef.current;
+    const prevFocused = document.activeElement as HTMLElement | null;
+
+    const focusables = () =>
+      container
+        ? Array.from(
+            container.querySelectorAll<HTMLElement>(
+              'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
+            ),
+          ).filter((el) => el.offsetParent !== null)
+        : [];
+
+    (focusables()[0] ?? container)?.focus();
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Tab" || !container) return;
+      const els = focusables();
+      if (els.length === 0) {
+        e.preventDefault();
+        container.focus();
+        return;
+      }
+      const first = els[0];
+      const last = els[els.length - 1];
+      const active = document.activeElement;
+      if (e.shiftKey && (active === first || active === container)) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && active === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown, true);
+      prevFocused?.focus?.();
+    };
+  }, [open]);
+
   if (!open) return null;
 
   return (
@@ -80,7 +124,7 @@ export function SUILayoutModal({
         onClick={closeOnBackdropClick ? onClose : undefined}
         className="fixed inset-0 bg-neutral-900/50 backdrop-blur-sm"
       />
-      <div ref={containerRef} className={cn(dialogVariants({ size }), className)}>
+      <div ref={containerRef} tabIndex={-1} className={cn(dialogVariants({ size }), "outline-none", className)}>
         {(title || description || showCloseButton) && (
           <div className="flex items-start justify-between gap-4 border-b border-neutral-200 px-6 py-5">
             <div className="min-w-0">

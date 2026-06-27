@@ -209,14 +209,19 @@
   /* Semantic state colors */
   --color-success-50: #ecf8ef;
   --color-success-500: #43b75d;
+  --color-success-600: #2f9e4d;
+  --color-success-700: #15803d; /* AA text on light */
   --color-warning-50: #fff7e6;
   --color-warning-500: #ffaa00;
+  --color-warning-600: #c2870a;
+  --color-warning-700: #a16207; /* AA text on light */
   --color-danger-50: #fdecec;
   --color-danger-100: #fee2e2;
   --color-danger-500: #ee443f;
   --color-danger-600: #dc2626;
-  --color-danger-700: #b91c1c;
+  --color-danger-700: #b91c1c; /* AA text on light */
   --color-info-500: #3b82f6;
+  --color-info-700: #1d4ed8; /* AA text on light */
 
   /* Trade / role colours — technician avatars */
   --color-trade-electrical: #cf4523;

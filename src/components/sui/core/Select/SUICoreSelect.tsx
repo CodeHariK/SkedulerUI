@@ -93,7 +93,7 @@ export function SUICoreSelect({
           )}
         >
           {label}
-          {required && <span className="text-danger-500"> *</span>}
+          {required && <span className="text-danger-600"> *</span>}
         </label>
       )}
 
@@ -153,7 +153,7 @@ export function SUICoreSelect({
       </Select.Root>
 
       {error && (
-        <p id={errorId} className="mt-1.5 text-body-sm text-danger-500">
+        <p id={errorId} className="mt-1.5 text-body-sm text-danger-600">
           {error}
         </p>
       )}

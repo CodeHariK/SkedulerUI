@@ -138,7 +138,7 @@ export function SUICoreInput({
           )}
         >
           {label}
-          {required && <span className="text-danger-500"> *</span>}
+          {required && <span className="text-danger-600"> *</span>}
         </label>
       )}
 
@@ -182,7 +182,7 @@ export function SUICoreInput({
       </div>
 
       {error && (
-        <p id={errorId} className="mt-1.5 text-body-sm text-danger-500">
+        <p id={errorId} className="mt-1.5 text-body-sm text-danger-600">
           {error}
         </p>
       )}

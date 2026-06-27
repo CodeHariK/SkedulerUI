@@ -23,6 +23,16 @@ const labelFor = (key: CardFieldKey) => CARD_FIELDS.find((f) => f.key === key)?.
  */
 export const CardLayoutEditor: React.FC<CardLayoutEditorProps> = ({ rows, onChange }) => {
   const [dragging, setDragging] = React.useState<{ key: CardFieldKey; source: DragSource } | null>(null);
+  const rootRef = React.useRef<HTMLDivElement>(null);
+  // After a keyboard move, re-focus the chip that moved (its DOM node changed).
+  const focusKeyRef = React.useRef<CardFieldKey | null>(null);
+
+  React.useEffect(() => {
+    const key = focusKeyRef.current;
+    if (!key || !rootRef.current) return;
+    rootRef.current.querySelector<HTMLElement>(`[data-card-field="${key}"]`)?.focus();
+    focusKeyRef.current = null;
+  });
 
   const hiddenFields = React.useMemo(() => {
     const assigned = new Set(rows.flat());
@@ -62,11 +72,41 @@ export const CardLayoutEditor: React.FC<CardLayoutEditorProps> = ({ rows, onChan
     setDragging(null);
   };
 
+  // Swap a chip within its row (keyboard arrow reorder).
+  const reorderWithinRow = (rowIdx: number, from: number, to: number) => {
+    if (to < 0 || to >= (rows[rowIdx]?.length ?? 0)) return;
+    const next = rows.map((r) => [...r]);
+    const [item] = next[rowIdx].splice(from, 1);
+    next[rowIdx].splice(to, 0, item);
+    onChange(next);
+  };
+
+  // Where a chip moves to on Enter/Space: Hidden → Row 1 → … → last → Hidden.
+  const nextLocation = (source: DragSource): DragSource =>
+    source === 'hidden' ? 0 : source < MAX_CARD_ROWS - 1 ? source + 1 : 'hidden';
+  const locationLabel = (source: DragSource) => (source === 'hidden' ? 'Hidden' : `Row ${source + 1}`);
+
+  const onChipKeyDown = (e: React.KeyboardEvent, key: CardFieldKey, source: DragSource, index?: number) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      focusKeyRef.current = key;
+      move(key, source, nextLocation(source));
+    } else if (source !== 'hidden' && index !== undefined && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+      e.preventDefault();
+      focusKeyRef.current = key;
+      reorderWithinRow(source, index, index + (e.key === 'ArrowLeft' ? -1 : 1));
+    }
+  };
+
   // Plain render function (NOT a component) so re-rendering on drag start doesn't
   // remount and abort the in-flight drag.
   const renderChip = (key: CardFieldKey, source: DragSource, index?: number) => (
     <div
       key={key}
+      role="button"
+      tabIndex={0}
+      data-card-field={key}
+      aria-label={`${labelFor(key)}, ${locationLabel(source)}. Enter to move; arrow keys to reorder.`}
       draggable
       onDragStart={(e) => onDragStart(e, key, source)}
       onDragEnd={() => setDragging(null)}
@@ -80,8 +120,10 @@ export const CardLayoutEditor: React.FC<CardLayoutEditorProps> = ({ rows, onChan
             }
           : undefined
       }
+      onKeyDown={(e) => onChipKeyDown(e, key, source, index)}
       className={cn(
         'flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-2.5 py-1 text-body-xs font-medium shadow-xs select-none transition-colors cursor-grab active:cursor-grabbing hover:border-primary-300 dark:bg-neutral-800 dark:border-border/30',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-200 focus-visible:border-primary-600',
         dragging?.key === key && 'opacity-40',
       )}
     >
@@ -91,10 +133,10 @@ export const CardLayoutEditor: React.FC<CardLayoutEditorProps> = ({ rows, onChan
   );
 
   return (
-    <div className="flex flex-col gap-4">
+    <div ref={rootRef} className="flex flex-col gap-4">
       <div className="flex flex-col gap-1">
         <SUICoreBodyText size="xs" tone="secondary">Drag fields into rows to lay out the card; drop onto a chip to reorder.</SUICoreBodyText>
-        <SUICoreBodyText size="2xs" tone="muted">Drag a field back to “Hidden” to remove it from the card.</SUICoreBodyText>
+        <SUICoreBodyText size="2xs" tone="muted">Keyboard: focus a field, press Enter to move it to the next row (or Hidden), and ←/→ to reorder within a row.</SUICoreBodyText>
       </div>
 
       {/* Live preview */}
@@ -165,7 +207,7 @@ export const CardLayoutEditor: React.FC<CardLayoutEditorProps> = ({ rows, onChan
                       variant="textLink"
                       size="sm"
                       text="Clear"
-                      className="text-fg-tertiary hover:text-danger-500"
+                      className="text-fg-tertiary hover:text-danger-600"
                       onClick={() => onChange(rows.map((r, i) => (i === rowIdx ? [] : r)))}
                     />
                   )}
